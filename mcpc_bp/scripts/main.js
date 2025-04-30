@@ -1,0 +1,753 @@
+// ct:/main.js
+import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes } from "@minecraft/server";
+import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
+
+//import { MinecraftItemTypes } from "@minecraft/vanilla-data";
+
+// Create & run an interval that is called every Minecraft tick
+system.runInterval(() => {
+  // Spams the chat with "Hello World" with world.sendMessage function from the API
+  world.sendMessage("Welcome to PlotClaim! BETA release - By WIPO");
+}, 400);
+
+/*
+world.afterEvents.playerSpawn.subscribe(event => {
+    for (var ev in world.beforeEvents.explosion) {
+        console.warn(ev);
+    }
+    //console.warn("--------------------------------------");
+    //for (var ev in world.afterEvents) {
+    //    console.warn(ev);
+    //}
+});
+*/
+
+
+const PLOT_SIZE = 16;
+const MAX_PLOT_PER_PLAYER = 9;
+const SPAWN_PROTECTION = 45; // players cannot claim a plot when there distance to worldspawn is less then this value 
+
+const DIRT_COST = 8;
+const LOG_COST = 4;
+const PC_MSG_PREFIX = "§4§lPLOTCLAIM:§f§r ";
+
+
+
+function location_to_plot(locationx,locationz){
+  // this function converts a world location on X-Z axis to a plot location on X-Z axis.
+  const x = Math.floor(locationx / PLOT_SIZE);
+  const z = Math.floor(locationz / PLOT_SIZE);
+  return { x, z };	
+}
+
+function getPlotCorners(PlotX, PlotZ) {
+  const Xmin = PlotX*PLOT_SIZE;
+  const Zmin = PlotZ*PLOT_SIZE;
+  const Xmax = Xmin + PLOT_SIZE-1;
+  const Zmax = Zmin + PLOT_SIZE-1;
+  return { Xmin, Xmax, Zmin, Zmax };
+}
+
+function getPlotCorners_fromposition(PositionX, PositionZ) {
+  const plotdata = location_to_plot(PositionX, PositionZ);
+  return getPlotCorners(plotdata.chunkX, plotdata.chunkZ)
+}
+
+
+//world.getAllPlayers().forEach(function (player) {
+//  console.warn(player.name);
+//});
+
+
+
+
+world.beforeEvents.explosion.subscribe((event) => {
+	if(event.dimension.id == "minecraft:overworld") {	
+		//console.warn(event.source.id +" - "+ event.source.typeId);	
+		const plot = location_to_plot(event.source.location.x, event.source.location.z);
+		const plotowner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+		if (!(plotowner==null)){
+			event.cancel = true;
+		}
+		//for (var ev in event.source) {
+		//	console.warn(ev);
+		//}
+	}
+});
+
+world.beforeEvents.playerPlaceBlock.subscribe((event) => {
+	const player = event.player;
+	const block = event.block;
+	const plot = location_to_plot(block.x, block.z);
+  
+	if(player.dimension.id == "minecraft:overworld") {
+		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+		if (plot_owner == null) {
+		//nobody is the owner you can place blocks
+		} else {
+			if (plot_owner == player.id) {
+			// you are to owner you can place blocks
+			} else {
+				event.cancel = true;
+				system.run(() => {
+					player.sendMessage(PC_MSG_PREFIX+"Cannot place block, you dont own this plot.");
+				});
+			}
+		}
+	}
+});
+
+
+world.beforeEvents.playerBreakBlock.subscribe((event) => {
+	const player = event.player;
+	const block = event.block;
+	const plot = location_to_plot(block.x, block.z);
+  
+	if(player.dimension.id == "minecraft:overworld") {
+		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+		if (plot_owner == null) {
+			//nobody is the owner you can place blocks
+		} else {
+			if (plot_owner == player.id) {
+			  // you are to owner you can place blocks
+			} else {
+				event.cancel = true;
+				system.run(() => {
+					player.sendMessage(PC_MSG_PREFIX+"Cannot break block, you dont own this plot.");
+				});
+			}
+		}
+	}
+});
+
+world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+	//check if a player is not spamming another players plot with water/lava buckets
+	const player = event.player;
+	const used_item = event.itemStack;
+	const block = event.block;
+	const plot = location_to_plot(block.x, block.z);
+
+	if(player.dimension.id == "minecraft:overworld") {
+		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString())
+
+		if (plot_owner == null) {
+			//nobody is the owner you can use buckets
+		} else {
+			if (plot_owner == player.id) {
+			  // you are the owner you can use buckets
+			} else {
+			  event.cancel = true;
+			  system.run(() => {
+				player.sendMessage(PC_MSG_PREFIX+"Cannot interact, you dont own this plot.");
+			  });
+			}
+		}
+	}
+});
+
+function* block_fillarea(startX, endX, startZ, endZ, startY, endY, blocktype ) {
+    const overworld = world.getDimension("overworld"); // gets the dimension of type overworld.
+    for (let x = startX; x <= endX; x++) {
+		for (let y = startY; y <= endY; y++) {
+            for (let z = startZ; z <= endZ; z++) {		
+                const block = overworld.getBlock({ x: x, y: y, z: z }); // get the block at the current loop coordinates.
+                if (block) block.setType(blocktype); // if the block is loaded, set it to cobblestone.
+                // yield back to job coordinator after every block is placed
+                yield;
+            }
+		}
+    }
+}
+
+function block_set(X, Y, Z, blocktype ) {
+    const overworld = world.getDimension("overworld"); // gets the dimension of type overworld.
+	
+    const block = overworld.getBlock({ x: X, y: Y, z: Z }); // get the block at the current loop coordinates.
+    if (block) {
+		block.setType(blocktype); // if the block is loaded, set it to cobblestone.
+	}
+}
+
+function player_can_buy_plot(player) {
+  // a player can only claim a plot if certain items are available in his inventory.
+  // these items will be substracted from the inventory.
+  const inventory = player.getComponent(EntityComponentTypes.Inventory);
+  let log_slot = -1;  // -1 equals to no slot, or not having the item.
+  let log_item = null;
+  let dirt_slot = -1;
+  let dirt_item = null;
+
+  let cost_multiplier = count_claims(player)+1;
+  if (cost_multiplier < 1){cost_multiplier = 1;}
+  
+  let needed_dirt_amount = DIRT_COST * cost_multiplier;
+  if (needed_dirt_amount > 64){needed_dirt_amount = 64;}
+  let needed_log_amount = LOG_COST * cost_multiplier;
+  if (needed_log_amount > 64){needed_log_amount = 64;}
+  
+  
+  // first check if the player has an empty slot to receive a gift
+  if (inventory.container.emptySlotsCount >= 1) {
+	// now loop all slots in the players inventory and check if we have all items we need to claim a plot
+	for (let i = 0; i < inventory.container.size ; i++) {
+		const item = inventory.container.getItem(i);
+		if (item){
+			if (item.typeId.includes("_log") && item.amount >= needed_log_amount)
+			{
+				log_slot = i;
+				log_item = item;
+			}
+			if (item.typeId.includes("dirt") && item.amount >= needed_dirt_amount)
+			{
+				dirt_slot = i;
+				dirt_item = item;
+			}		
+		}
+	}
+	// now that we looped through all items, lets check if we got everyting and remove them from the inventory.
+	if (log_slot >= 0)
+	{
+		if (dirt_slot >= 0)
+		{
+			// remove or decrease the items from the players inventory
+			if (needed_log_amount == log_item.amount)
+			{
+				log_item = null;
+			}
+			else
+			{
+				log_item.amount = log_item.amount - needed_log_amount;
+			}
+			inventory.container.setItem(log_slot, log_item);
+			if (needed_dirt_amount == dirt_item.amount)
+			{
+				dirt_item = null;
+			}
+			else
+			{
+				dirt_item.amount = dirt_item.amount - needed_dirt_amount;
+			}
+			inventory.container.setItem(dirt_slot, dirt_item);
+			// exit this function with success and claim plot
+			return true;
+		}
+		else
+		{
+			player.sendMessage(PC_MSG_PREFIX+"You need at least " + needed_dirt_amount.toString() + " dirt blocks in your inventory to claim a plot.");
+		}
+	}
+	else
+	{
+		player.sendMessage(PC_MSG_PREFIX+"You need at least " + needed_log_amount.toString() + " logs in your inventory to claim a plot.");
+	}
+  }
+  else {
+    player.sendMessage(PC_MSG_PREFIX+"You need 1 empty slot in your inventory before you can claim a plot.");
+  }
+  return false;
+}
+
+function listdynamicprop(player){
+	player.sendMessage(world.getDynamicPropertyIds());
+	player.sendMessage(player.getDynamicPropertyIds());
+}
+
+function count_claims(player){
+	let plotcounter = 0; 
+	// loop to all claimed plots and count how many plots are claimed by this player
+	let world_dynamic_property_list = world.getDynamicPropertyIds();
+	for (let world_dynamic_property_id in world_dynamic_property_list) {
+		let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+		if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+			let plot = world_dynamic_property_name;
+			let plotowner = world.getDynamicProperty(plot);
+			if (plotowner == player.id){
+				plotcounter = plotcounter+1;
+			}
+		}
+	}	
+	return plotcounter;
+}
+
+function show_all_claims(player){
+	// loop to all claimed plots and count how many plots are claimed by this player
+	let world_dynamic_property_list = world.getDynamicPropertyIds();
+	for (let world_dynamic_property_id in world_dynamic_property_list) {
+		let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+		if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+			const plot = world_dynamic_property_name;
+			const plotowner = world.getDynamicProperty(plot);
+			const plotlocation = plot.substring(plot.indexOf("_")+1);
+			const plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
+			player.sendMessage (plot + " -> " + plotowner + " : " + getPlayerName(plotowner) + " (" + plotfriendlyname +")");
+		}
+	}	
+}
+
+function getPlayerName(playerId){
+	let playername = world.getDynamicProperty("user_" + playerId.toString());
+	if (playername == null) {
+		playername = "N/A";
+	}
+	return playername;
+}
+
+function show_claims(player, return_message) {
+	if (return_message != true){
+		return_message = false
+	}
+	let message="";
+    // loop to all claimed plots and show the ones that are yours
+	let world_dynamic_property_list = world.getDynamicPropertyIds();
+	for (let world_dynamic_property_id in world_dynamic_property_list) {
+		let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+		if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+			let plot = world_dynamic_property_name;
+			let plotowner = world.getDynamicProperty(plot);
+			if (plotowner == player.id){
+				// get the X/Z values from the plotname
+				const plotlocation = plot.substring(plot.indexOf("_")+1);
+				const X = plotlocation.substring(0,plotlocation.indexOf("_"));
+				const Z = plotlocation.substring(plotlocation.indexOf("_")+1);
+				// now use these values to get the plot corners (coordinates)
+				const plot_coordinates = getPlotCorners(parseInt(X), parseInt(Z));
+				let plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
+				// we are ready to show all info
+				if (return_message == true){
+					message = message + "\n" + plot + " --- " + plotfriendlyname +  "\n-> from(" + plot_coordinates.Xmin + "," + plot_coordinates.Zmin + ")\n-> to(" + plot_coordinates.Xmax + "," + plot_coordinates.Zmax + ")\n\n";
+				}else{
+					player.sendMessage(plotfriendlyname +  " -> from(" + plot_coordinates.Xmin + "," + plot_coordinates.Zmin + ") -> to(" + plot_coordinates.Xmax + "," + plot_coordinates.Zmax + ")");
+				}
+			}
+		}
+	}
+	if (return_message == true){
+		return message;
+	}
+}
+
+function list_claims(player) {
+	let plotcounter=0;
+	let plotlist = [];
+    // loop to all claimed plots and show the ones that are yours
+	let world_dynamic_property_list = world.getDynamicPropertyIds();
+	for (let world_dynamic_property_id in world_dynamic_property_list) {
+		let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+		if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+			let plot = world_dynamic_property_name;
+			let plotowner = world.getDynamicProperty(plot);
+			if (plotowner == player.id){
+				// get the X/Z values from the plotname
+				const plotlocation = plot.substring(plot.indexOf("_")+1);
+				const X = plotlocation.substring(0,plotlocation.indexOf("_"));
+				const Z = plotlocation.substring(plotlocation.indexOf("_")+1);
+				// now use these values to get the plot corners (coordinates)
+				const plot_coordinates = getPlotCorners(parseInt(X), parseInt(Z));
+				let plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
+				if (plotfriendlyname == null) {
+					plotfriendlyname = "noname";
+				}
+				// we are ready to show all info
+				plotlist[plotcounter] = plot +" --- "+ plotfriendlyname;
+				plotcounter = plotcounter + 1;
+			}
+		}
+	}
+	return plotlist;
+}
+
+function drop_claim(player) {
+	if(player.dimension.id == "minecraft:overworld") {
+		const player_current_plot_xz = location_to_plot(player.location.x, player.location.z);
+		const player_current_plot = "plot_" + player_current_plot_xz.x.toString() + "_"  + player_current_plot_xz.z.toString(); 
+		
+		// loop to all claimed plots and show the ones that are yours
+		let world_dynamic_property_list = world.getDynamicPropertyIds();
+		for (let world_dynamic_property_id in world_dynamic_property_list) {
+			const world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+			if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+				const plot = world_dynamic_property_name;
+				const plotowner = world.getDynamicProperty(plot);
+				if (player_current_plot == plot){
+					if (plotowner == player.id){
+						// get the X/Z values from the plotname
+						world.setDynamicProperty(plot, null);                           //set owner of plot to null (=delete value)
+					    const plotlocation = plot.substring(plot.indexOf("_")+1);
+						world.setDynamicProperty("plotname_" + plotlocation, null);		//set friendly name of plot to null (=delete value)
+						player.sendMessage(PC_MSG_PREFIX+"Dropping this plot! Now it's available for everyone" );
+					}
+					else
+					{
+						player.sendMessage(PC_MSG_PREFIX+"Cannot drop this plot, its not yours");
+					}
+				}
+			}
+		}
+	}
+}
+
+world.afterEvents.chatSend.subscribe((event) => {
+  const player = event.sender;
+  const msg = event.message;
+  
+  if(player.dimension.id == "minecraft:overworld") {
+	if (msg == "!claim") {
+		claim_plot(player, null);
+	}
+	if (msg == "!showclaim")
+	{
+		show_claims(player);
+	}
+	if (msg == "!drop")
+	{
+		drop_claim(player);
+	}
+	if (msg == "!flush")
+	{
+		world.clearDynamicProperties();
+		player.clearDynamicProperties();
+	}
+	if (msg == "!showallclaims")
+	{
+		show_all_claims(player);
+	}
+	if (msg == "!listdynprop")
+	{
+		listdynamicprop(player);
+	}
+  }
+
+});
+
+
+function generate_plotname(player){
+	//generate a unique plotname for a spefic player.
+	//plotnames begin with "MY PLOT " followed by a number. this function will check the name is unique
+	
+	let myplotcounter=0;
+	let myplotname= "MY PLOT ";
+	let foundhit=true;
+	
+	while (foundhit==true) {
+		// as long as we find a plot with the same name we keep looping and searching until we found somehting
+		foundhit = false;
+		myplotcounter = myplotcounter+1;
+		let world_dynamic_property_list = world.getDynamicPropertyIds();
+		for (let world_dynamic_property_id in world_dynamic_property_list) {
+			let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
+			if (world_dynamic_property_name.indexOf("plot_") >= 0) {
+				let plot = world_dynamic_property_name;
+				let plotowner = world.getDynamicProperty(plot);
+				if (plotowner == player.id){
+					// get the X/Z values from the plotname
+					const plotlocation = plot.substring(plot.indexOf("_")+1);
+					const plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
+					if (plotfriendlyname == myplotname+myplotcounter.toString()) {
+						foundhit=true;
+					}
+				}
+			}
+		}
+	}
+	myplotname=myplotname+myplotcounter.toString();
+	return myplotname;
+}
+
+function claim_plot(player, myplotname){
+	if(player.dimension.id == "minecraft:overworld") {
+		if (player_distance_to_spawn(player) >= SPAWN_PROTECTION){
+			// ok player wants to claim a plot, check if this is possible then claim it.
+			const plyx = player.location.x;
+			const plyz = player.location.z;
+			const plyy = player.location.y;
+			const plot = location_to_plot(plyx, plyz);
+			const current_plot_count = count_claims(player);
+			//console.warn(current_plot_count);
+			
+
+			
+			if (current_plot_count < MAX_PLOT_PER_PLAYER) {
+				if (world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString()) == null) {
+					if (player_can_buy_plot(player)){
+						//if no plotname is given, generate something
+						if (myplotname==null){
+							myplotname=generate_plotname(player);
+						}					
+						
+						world.setDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString(), player.id);
+						world.setDynamicProperty("plotname_" + plot.x.toString() + "_" + plot.z.toString(), myplotname);
+						
+						const plotlimits = getPlotCorners(plot.x, plot.z);
+						//system.runJob(block_fillarea(plotlimits.Xmin, plotlimits.Xmax, plotlimits.Zmin, plotlimits.Zmax,plyy-1,plyy-1, "minecraft:cobblestone"));
+						system.run(() => {
+							player.sendMessage(PC_MSG_PREFIX+"Plot claimed!!");
+							
+							// place a fence on every corner of the plot
+							block_set(plotlimits.Xmin,plyy,plotlimits.Zmin, "oak_fence");
+							block_set(plotlimits.Xmin,plyy,plotlimits.Zmax, "oak_fence");
+							block_set(plotlimits.Xmax,plyy,plotlimits.Zmin, "oak_fence");
+							block_set(plotlimits.Xmax,plyy,plotlimits.Zmax, "oak_fence");
+							
+							//give the player a gift the first time he claims a plot
+							//const privatechest = new ItemStack("minecraft:ender_chest", 1);
+							if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
+								const privatechest = new ItemStack("minecraft:chest", 1);
+								const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+								if (player_inventory && player_inventory.container) {
+									player_inventory.container.addItem(privatechest);
+									player.sendMessage("Check your inventory you have got a little present.");
+									player.setDynamicProperty("hasreceivedgift", 1);
+								}
+							}
+						});
+					}
+				} else {
+				  player.sendMessage(PC_MSG_PREFIX+"Plot Already Claimed.");
+				}
+			} else {
+				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + MAX_PLOT_PER_PLAYER + " plots allowed");
+			}
+		} else {
+			player.sendMessage(PC_MSG_PREFIX+"Cannot claim a plot at this location. You are to close to the worldspawn");
+		}
+	}
+	else
+	{
+		player.sendMessage(PC_MSG_PREFIX+"Plot funtions are only available in the overworld.");
+	}
+}
+
+
+world.beforeEvents.itemUse.subscribe(event => {
+	if (event.itemStack.typeId === "wipo:plotclaim") {
+		system.run(() => {
+			showPlotMainWindow(event.source);
+		});
+	};
+});
+
+function player_distance_to_spawn(player) {
+	//we only use X and Z, because this funtion if for plot purposes.
+	let distance=0;
+	if (player){
+		const spawnlocation = world.getDefaultSpawnLocation();
+		distance = Math.abs(Math.sqrt((spawnlocation.z - player.location.z) * (spawnlocation.z - player.location.z) + (spawnlocation.x - player.location.x) * (spawnlocation.x - player.location.x)));
+	}
+	return distance;
+}
+
+function showPlotConfirmDeleteWindow(player, plot){
+	if (player && plot) {
+		if(player.dimension.id == "minecraft:overworld") {
+			//get all information about this plot
+			const plot_owner = world.getDynamicProperty(plot);
+			if (plot_owner == player.id){ //at this point it should pass, but you never now, check to make sure
+				const plotlocation = plot.substring(plot.indexOf("_")+1);
+				const plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
+				const X = plotlocation.substring(0,plotlocation.indexOf("_"));
+				const Z = plotlocation.substring(plotlocation.indexOf("_")+1);
+				// now use these values to get the plot corners (coordinates)
+				const plot_coordinates = getPlotCorners(parseInt(X), parseInt(Z));
+				// we are ready to show all info
+				const message = "Do you realy want to delete \n" + plot + "\n" + plotfriendlyname + "\n -> from("  + plot_coordinates.Xmin + "," + plot_coordinates.Zmin + ")\n -> to(" + plot_coordinates.Xmax + "," + plot_coordinates.Zmax + ")";
+				
+				let form = new MessageFormData();
+				form.title("Delete a plot");
+				form.body(message);
+				form.button1("No");
+				form.button2("Yes");
+				
+				form.show(player).then(r => {
+					if(r.canceled || r.selection == 0){
+						// button 0 is "NO", nothing to do
+						return;
+					}else{
+						world.setDynamicProperty(plot, null);
+						world.setDynamicProperty("plotname_" + plotlocation, null);
+						player.sendMessage(PC_MSG_PREFIX+"Plot deleted");
+					}
+				}).catch(e => {
+					console.error(e, e.stack);
+				});
+			}
+		}
+	}
+}
+
+function showPlotDeleteWindow(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+		if(player.dimension.id == "minecraft:overworld") {
+			if (count_claims(player) > 0){
+				const claimlist =  list_claims(player);  // an element in claimlist has this format "plot_x_z --- friendlyname"
+				const form = new ModalFormData().title("Delete a plot");
+				form.dropdown("Select a plot", claimlist);
+
+				
+				form.show(player).then(r => {
+				// This will stop the code when the player closes the form
+					if (r.canceled) {
+						//console.warn("form canceled");
+						return;
+					}else{
+						const response = r.formValues[0];
+						const plot =  claimlist[response].substring(0,claimlist[response].indexOf(" ---"));
+						system.run(() => {
+							showPlotConfirmDeleteWindow(player, plot);
+						});
+					}
+				}).catch(e => {
+					console.error(e, e.stack);
+				});
+			}else{
+				player.sendMessage(PC_MSG_PREFIX+"You don't have any claims to delete.");
+			}
+		}
+	}
+}
+
+function showPlotClaimWindow(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+		if(player.dimension.id == "minecraft:overworld") {
+			const claimcount = count_claims(player);
+			if ( claimcount < MAX_PLOT_PER_PLAYER){
+				const plotlocation = location_to_plot(player.location.x, player.location.z);
+				const plot = "plot_" + plotlocation.x.toString() + "_" + plotlocation.z.toString();
+				if (world.getDynamicProperty(plot) == null) {
+					// calculate the COST to claim this plot
+					let cost_multiplier = claimcount+1;
+					if (cost_multiplier < 1){cost_multiplier = 1;}
+					let needed_dirt_amount = DIRT_COST * cost_multiplier;
+					if (needed_dirt_amount > 64){needed_dirt_amount = 64;}
+					let needed_log_amount = LOG_COST * cost_multiplier;
+					if (needed_log_amount > 64){needed_log_amount = 64;}
+  
+					const form = new ModalFormData().title("Claim a plot");
+					let infotext = "you are now at plot:\n" + plot; 
+					infotext = infotext + "\n\nYou need these resources to claim this plot:\n -dirt : " + needed_dirt_amount.toString() + "\n -logs : " + needed_log_amount.toString(); 
+					infotext = infotext + "\n\nType a unique name for your new plot:";
+					form.textField(infotext, "choose your plot name", "my plot");
+
+					form.show(player).then(r => {
+					// This will stop the code when the player closes the form
+						if (r.canceled) {
+							//console.warn("form canceled");
+							return;
+						}else{
+							let response = r.formValues[0];
+							response = response.trim();
+							if (response.length == 0){
+								system.run(() => {
+									claim_plot(player);
+								});
+							}else{
+								system.run(() => {
+									claim_plot(player, response);
+								});
+							}
+						}
+					}).catch(e => {
+						console.error(e, e.stack);
+					});
+				}else{
+					player.sendMessage(PC_MSG_PREFIX+"This plot is already claimed. Find another location to claim a plot.");
+				}
+			}else{
+				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + MAX_PLOT_PER_PLAYER + " plots allowed");
+			}
+		}
+	}
+}
+
+function showPlotShowWindow(player) {
+	if (player){
+		if(player.dimension.id == "minecraft:overworld") {
+			if (count_claims(player) > 0){
+				const myplotlist = show_claims(player, true);
+				const form = new ActionFormData()
+					.title("Your plots")
+					.body(myplotlist)
+					.button("close");
+	
+				form.show(player).then(r => {
+					// nothing to do on this window
+					return;
+				}).catch(e => {
+					console.error(e, e.stack);
+				});
+			}else{
+				player.sendMessage(PC_MSG_PREFIX+"You don't have any claims to show.");
+			}
+		}
+	}
+}
+
+function showPlotMainWindow(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+		const form = new ActionFormData()
+			.title("Plot Manager")
+			.body("what do you want to do")
+			.button("claim a new plot", "textures/ui/confirm.png") //gear
+			.button("delete a plot", "textures/ui/cancel.png") //crossout
+			.button("show my plot info", "textures/items/book_writable.png");
+		
+		form.show(player).then(r => {
+		// This will stop the code when the player closes the form
+			if (r.canceled) {
+				//console.warn("form canceled");
+				return;
+			}else{
+				let response = r.selection;
+				switch (response) {
+					case 0:
+						system.run(() => {
+							showPlotClaimWindow(player);
+						});
+						break;
+					case 1:
+						system.run(() => {
+							showPlotDeleteWindow(player);
+						});
+						break;
+					case 2:
+						system.run(() => {
+							showPlotShowWindow(player);
+						});
+						break;
+					default:
+						// Use this when your button doesn't have a function yet
+						// You don't need to use "break" on default case
+						// Remember to place the default on very bottom
+				}
+			}
+		}).catch(e => {
+			console.error(e, e.stack);
+		});
+	}
+}
+
+
+
+
+
+world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {
+	//console.warn ("player " + playerName + "(" + playerId + ") joined the game");
+	//we store the playername as a dynimc prop on the world object so that it can be read even when the player is offline
+
+	world.setDynamicProperty("user_" + playerId.toString(), playerName);
+});
+
+world.afterEvents.playerSpawn.subscribe( event => {
+    //in this event we got the playerId, but we need to find the player object.
+	//loop trough all players and find this player.
+	const player = event.player;
+	
+	const plotclaimitem = new ItemStack("wipo:plotclaim", 1);
+	const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+	if (player_inventory && player_inventory.container) {
+		const player_inventory_slot = player_inventory.container.getSlot(8);
+		player_inventory_slot.setItem(plotclaimitem);
+		player_inventory_slot.keepOnDeath = true;
+		player_inventory_slot.lockMode = true;
+	}
+	
+});
