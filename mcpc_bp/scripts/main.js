@@ -24,7 +24,7 @@ world.afterEvents.playerSpawn.subscribe(event => {
 
 
 const PLOT_SIZE = 16;
-const MAX_PLOT_PER_PLAYER = 9;
+const MAX_PLOT_PER_PERMIT = 4;
 const SPAWN_PROTECTION = 45; // players cannot claim a plot when there distance to worldspawn is less then this value 
 
 const DIRT_COST = 8;
@@ -32,6 +32,15 @@ const LOG_COST = 4;
 const PC_MSG_PREFIX = "§4§lPLOTCLAIM:§f§r ";
 
 
+function maxclaims(player) {
+	const permits = player.getDynamicProperty("plot_permits");
+	if (permits > 0) {  
+		const playermaxclaims = permits * MAX_PLOT_PER_PERMIT;
+		return playermaxclaims;
+	} else {
+		return 0;
+	}
+}
 
 function location_to_plot(locationx,locationz){
   // this function converts a world location on X-Z axis to a plot location on X-Z axis.
@@ -429,7 +438,7 @@ function generate_plotname(player){
 	let foundhit=true;
 	
 	while (foundhit==true) {
-		// as long as we find a plot with the same name we keep looping and searching until we found somehting
+		// as long as we find a plot with the same name we keep looping and searching until we found somehting free
 		foundhit = false;
 		myplotcounter = myplotcounter+1;
 		let world_dynamic_property_list = world.getDynamicPropertyIds();
@@ -462,11 +471,12 @@ function claim_plot(player, myplotname){
 			const plyy = player.location.y;
 			const plot = location_to_plot(plyx, plyz);
 			const current_plot_count = count_claims(player);
+			const playermaxclaims = maxclaims(player);
 			//console.warn(current_plot_count);
 			
 
 			
-			if (current_plot_count < MAX_PLOT_PER_PLAYER) {
+			if (current_plot_count < playermaxclaims) {
 				if (world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString()) == null) {
 					if (player_can_buy_plot(player)){
 						//if no plotname is given, generate something
@@ -505,7 +515,7 @@ function claim_plot(player, myplotname){
 				  player.sendMessage(PC_MSG_PREFIX+"Plot Already Claimed.");
 				}
 			} else {
-				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + MAX_PLOT_PER_PLAYER + " plots allowed");
+				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + playermaxclaims.toString() + " plots allowed");
 			}
 		} else {
 			player.sendMessage(PC_MSG_PREFIX+"Cannot claim a plot at this location. You are to close to the worldspawn");
@@ -609,7 +619,8 @@ function showPlotClaimWindow(player) { //, log: (message: string, status?: numbe
 	if (player) {
 		if(player.dimension.id == "minecraft:overworld") {
 			const claimcount = count_claims(player);
-			if ( claimcount < MAX_PLOT_PER_PLAYER){
+			const playermaxclaims = maxclaims(player);
+			if ( claimcount < playermaxclaims){
 				const plotlocation = location_to_plot(player.location.x, player.location.z);
 				const plot = "plot_" + plotlocation.x.toString() + "_" + plotlocation.z.toString();
 				if (world.getDynamicProperty(plot) == null) {
@@ -652,7 +663,7 @@ function showPlotClaimWindow(player) { //, log: (message: string, status?: numbe
 					player.sendMessage(PC_MSG_PREFIX+"This plot is already claimed. Find another location to claim a plot.");
 				}
 			}else{
-				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + MAX_PLOT_PER_PLAYER + " plots allowed");
+				player.sendMessage(PC_MSG_PREFIX+"Cannot claim another plot, max " + playermaxclaims.toString() + " plots allowed");
 			}
 		}
 	}
@@ -681,6 +692,86 @@ function showPlotShowWindow(player) {
 	}
 }
 
+function showPlotPermitWindow(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+		const permits = player.getDynamicProperty("plot_permits")
+		let permitcost = 0;
+		if (permits != null) {  // oops something went wrong??? exit 
+			if (permits < 4){
+				if (permits == 1) {permitcost=16;}
+				if (permits == 2) {permitcost=32;}
+				if (permits == 3) {permitcost=64;}
+				
+				const form = new ActionFormData()
+					.title("Buy a Permit")
+					.body("You currently have §l" + permits.toString() + "§r permits." + "\nThis means you can claim §l" + maxclaims(player).toString() + "§r plots.\n\nAn additional permit grants you 4 extra plot claims.\n\nYou need §n" + permitcost.toString() +" copper ingot§r to buy a new permit.")
+					.button("buy permit", "textures/ui/confirm.png") 
+					.button("close", "textures/ui/cancel.png");
+
+					
+				form.show(player).then(r => {
+				// This will stop the code when the player closes the form
+					if (r.canceled) {
+						//console.warn("form canceled");
+						return;
+					}else{
+						let response = r.selection;
+						switch (response) {
+							case 0:
+								system.run(() => {
+									// check if player can buy a permit
+									const inventory = player.getComponent(EntityComponentTypes.Inventory);
+									let copper_ingot_slot = -1;
+									let copper_ingot_item;
+									for (let i = 0; i < inventory.container.size ; i++) {
+										const item = inventory.container.getItem(i);
+										if (item){
+											if (item.typeId == "minecraft:copper_ingot" && item.amount >= permitcost)
+											{
+												copper_ingot_slot = i;
+												copper_ingot_item = item;
+											}		
+										}
+									}								
+									if (copper_ingot_slot >= 0) {
+												// remove or decrease the items from the players inventory
+												if (permitcost == copper_ingot_item.amount){
+													copper_ingot_item = null;
+												} else {
+													copper_ingot_item.amount = copper_ingot_item.amount - permitcost;
+												}
+												inventory.container.setItem(copper_ingot_slot, copper_ingot_item);
+					
+												// exit this function with success and claim plot
+												player.setDynamicProperty("plot_permits", permits+1); 
+												player.sendMessage(PC_MSG_PREFIX + "New PERMIT added! You can claim 4 new plots.");
+									} else {
+										player.sendMessage(PC_MSG_PREFIX+"You need at least " + permitcost.toString() + " copper ingots in your inventory to claim a plot.");
+									}										
+								});
+								break;
+							case 1:
+								// close window and do nothing
+								break;
+							default:
+								// Use this when your button doesn't have a function yet
+								// You don't need to use "break" on default case
+								// Remember to place the default on very bottom
+						}
+					}
+				}).catch(e => {
+					console.error(e, e.stack);
+				});
+			} else {
+				player.sendMessage(PC_MSG_PREFIX+ "You reached your MAX permit limit.");
+				player.sendMessage(PC_MSG_PREFIX+ "You currently have §l" + permits.toString() + "§r permits. This means you can claim §l" + maxclaims(player).toString() + "§r plots.");
+			}
+		} else {
+		player.sendMessage(PC_MSG_PREFIX+"Cannot read your permit status, try to rejoin the game.");
+		}
+	}
+}
+
 function showPlotMainWindow(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
 	if (player) {
 		const form = new ActionFormData()
@@ -688,8 +779,9 @@ function showPlotMainWindow(player) { //, log: (message: string, status?: number
 			.body("what do you want to do")
 			.button("claim a new plot", "textures/ui/confirm.png") //gear
 			.button("delete a plot", "textures/ui/cancel.png") //crossout
-			.button("show my plot info", "textures/items/book_writable.png");
-		
+			.button("show my plot info", "textures/items/book_writable.png")
+			.button("buy permits", "textures/items/map_filled.png");	
+			
 		form.show(player).then(r => {
 		// This will stop the code when the player closes the form
 			if (r.canceled) {
@@ -711,6 +803,11 @@ function showPlotMainWindow(player) { //, log: (message: string, status?: number
 					case 2:
 						system.run(() => {
 							showPlotShowWindow(player);
+						});
+						break;
+					case 3:
+						system.run(() => {
+							showPlotPermitWindow(player);
 						});
 						break;
 					default:
@@ -750,4 +847,10 @@ world.afterEvents.playerSpawn.subscribe( event => {
 		player_inventory_slot.lockMode = true;
 	}
 	
+	world.setDynamicProperty("plot_permits", null);  
+	//check if player has permits, if not set to 1. first permit is free.
+	if (player.getDynamicProperty("plot_permits") == null)
+	{
+		player.setDynamicProperty("plot_permits", 1);  
+	}
 });

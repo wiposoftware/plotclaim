@@ -1,8 +1,8 @@
 {
   "format_version": 2,
   "header": {
-    "name": "pack.name",
-    "description": "pack.description",
+    "name": "Wipo's PLOTCLAIM Behavior Pack",
+    "description": "Claim a plot. You will be to owner of this plot and only you will be able to build on this plot.",
     "uuid": "5c773689-413e-45fb-b179-561f8e010801",
     "version": [
       1,

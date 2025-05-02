@@ -2,7 +2,7 @@
 	"resource_pack_name": "Wipo's PlotClaim",
 	"texture_name": "atlas.items",
 	"texture_data": {
-		"wipo:plotclaim": {
+		"wipo_plotclaim": {
 			"textures": "textures/items/plotclaim"
 		}
 	}
