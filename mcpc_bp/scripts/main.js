@@ -2,12 +2,13 @@
 import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes } from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 
+
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
-  world.sendMessage("Welcome to PlotClaim! BETA release - By WIPO");
+  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.1 - By WIPO");
 }, 400);
 
 /*
@@ -78,9 +79,6 @@ world.beforeEvents.explosion.subscribe((event) => {
 		if (!(plotowner==null)){
 			event.cancel = true;
 		}
-		//for (var ev in event.source) {
-		//	console.warn(ev);
-		//}
 	}
 });
 
@@ -137,7 +135,7 @@ world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
 	const plot = location_to_plot(block.x, block.z);
 
 	if(player.dimension.id == "minecraft:overworld") {
-		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString())
+		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
 
 		if (plot_owner == null) {
 			//nobody is the owner you can use buckets
@@ -145,10 +143,17 @@ world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
 			if (plot_owner == player.id) {
 			  // you are the owner you can use buckets
 			} else {
-			  event.cancel = true;
-			  system.run(() => {
-				player.sendMessage(PC_MSG_PREFIX+"Cannot interact, you dont own this plot.");
-			  });
+				// now check if the player is a friend of the plot owner
+				let friends = world.getDynamicProperty("friends_" + plot_owner);
+				if (friends == null){friends="";}
+				if (friends.indexOf(";" + player.id.toString()) >= 0) {
+					// yep you are a friend you can use buckets
+				} else {
+					event.cancel = true;
+					system.run(() => {
+						player.sendMessage(PC_MSG_PREFIX+"Cannot interact, you dont own this plot.");
+					});
+				}
 			}
 		}
 	}
@@ -398,8 +403,8 @@ function drop_claim(player) {
 world.afterEvents.chatSend.subscribe((event) => {
   const player = event.sender;
   const msg = event.message;
-  
-  if(player.dimension.id == "minecraft:overworld") {
+  //only use this in development/debug
+  /*if(player.dimension.id == "minecraft:overworld") {
 	if (msg == "!claim") {
 		claim_plot(player, null);
 	}
@@ -424,8 +429,7 @@ world.afterEvents.chatSend.subscribe((event) => {
 	{
 		listdynamicprop(player);
 	}
-  }
-
+  }*/
 });
 
 
@@ -767,8 +771,214 @@ function showPlotPermitWindow(player) { //, log: (message: string, status?: numb
 				player.sendMessage(PC_MSG_PREFIX+ "You currently have §l" + permits.toString() + "§r permits. This means you can claim §l" + maxclaims(player).toString() + "§r plots.");
 			}
 		} else {
-		player.sendMessage(PC_MSG_PREFIX+"Cannot read your permit status, try to rejoin the game.");
+			player.sendMessage(PC_MSG_PREFIX+"Cannot read your permit status, try to rejoin the game.");
 		}
+	}
+}
+
+function showPlotADDfriends(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+
+		let playerlist = [];
+		let counter = 0;
+		let skip = 0;
+
+		const dummylist = world.getAllPlayers();
+		for (let i = 1; i <= dummylist.length; i++)
+		{
+			if (dummylist[i-1].id != player.id) {
+				playerlist[i-1-skip] = dummylist[i-1].name + " [" + dummylist[i-1].id.toString() + "]";
+			} else {
+				//we don't want to add ourself to the list, skip
+				skip++;
+			}
+		}
+		
+		if (playerlist.length == 0 || playerlist == null) {
+			player.sendMessage(PC_MSG_PREFIX+"There are no players that you can add as plot friend");
+			system.run(() => {
+				showPlotFriends(player);
+			});
+		} else {
+			const form = new ModalFormData().title("Add a friend");
+			form.dropdown("Select a new friend", playerlist);
+
+			form.show(player).then(r => {
+			// This will stop the code when the player closes the form
+				if (r.canceled) {
+					//no action needed go back to friend main window
+					system.run(() => {
+						showPlotFriends(player);
+					});
+				}else{
+					// get the id from the forms selection box
+					const response = r.formValues[0];
+					// filter out the userid from the returned selection box data.
+					const userid =  playerlist[response].substring(playerlist[response].indexOf(" [")+2,playerlist[response].length-1);
+					// get the current friendlist before we make changes to it.
+					let friendlist = world.getDynamicProperty("friends_" + player.id.toString());
+					let can_add_friend = true;
+					if (friendlist == null) {
+						// friendslist is null, so just make it an empty string to start with;
+						friendlist = "";
+					} else {
+						// check if this user is already a friend
+						if ( friendlist.indexOf(userid) >= 0) {
+							// this user is already a friend
+							can_add_friend = false;
+							player.sendMessage(PC_MSG_PREFIX+"This user is already your plot friend");
+						}
+					}
+					if (can_add_friend) {
+						// now add the above userid to the current users friendlist
+						friendlist = friendlist + ";" + userid;
+						world.setDynamicProperty("friends_" + player.id.toString(),friendlist);
+						player.sendMessage(PC_MSG_PREFIX+"Player added to your plot friends list");
+					}
+					system.run(() => {
+						showPlotFriends(player);
+					});
+				}
+			}).catch(e => {
+				console.error(e, e.stack);
+			});
+		}
+	}
+}
+
+function showPlotDELETEfriends(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
+	if (player) {
+
+		const dummy = world.getDynamicProperty("friends_" + player.id.toString()); // the friendslist is a string with ; seperated userid's
+		let friendlist = [];
+		if (dummy == null){
+			player.sendMessage(PC_MSG_PREFIX+"Cannot delete plot friend, because you do not have plot friends yet.");
+			system.run(() => {
+				showPlotFriends(player);
+			});
+			return;
+		} else {
+			const dummylist = dummy.split(";");
+			for (let friend in dummylist) {
+				if (friend > 0){
+					const getusername = world.getDynamicProperty("user_" + dummylist[friend]);
+					if (getusername == null){
+						friendlist[friend-1] = " noname [" + dummylist[friend] + "]";
+					} else {
+						friendlist[friend-1] = getusername + " [" + dummylist[friend]+ "]";
+					}
+				}
+			}
+		}
+
+		const form = new ModalFormData().title("Delete a friend");
+		form.dropdown("Select a friend", friendlist);
+
+		form.show(player).then(r => {
+		// This will stop the code when the player closes the form
+			if (r.canceled) {
+				//no action needed go back to friend main window
+				system.run(() => {
+					showPlotFriends(player);
+				});
+			}else{
+				// get the id from the forms selection box
+				const response = r.formValues[0];
+				// filter out the friends userid from the returned selection box data.
+				const userid =  friendlist[response].substring(friendlist[response].indexOf(" [")+2,friendlist[response].length-1);
+				// get the current friendlist before we make changes to it.
+				let flatfriendlist = world.getDynamicProperty("friends_" + player.id.toString());
+				if (flatfriendlist == null) {
+					// friendslist is null, so just make it an empty string to start with;
+					// strange, something went wrong??
+					player.sendMessage(PC_MSG_PREFIX+"Cannot delete friend, something went wrong. try again...");
+				} else {
+					// find the location of this friend in the list.
+					const startindex = flatfriendlist.indexOf(";"+userid)
+					const endindex = startindex + userid.length + 1;
+					// take all the substring (userids) that we still need
+					const dummy1 = flatfriendlist.substring(0,startindex);
+					const dummy2 = flatfriendlist.substring(endindex);
+					// build the new friendslist and push it to the world
+					flatfriendlist = dummy1+dummy2;
+					if (flatfriendlist.length == 0) {
+						world.setDynamicProperty("friends_" + player.id.toString(),null);
+					} else {
+						world.setDynamicProperty("friends_" + player.id.toString(),flatfriendlist);
+					}
+					player.sendMessage(PC_MSG_PREFIX+"Player deleted from your plot friends list");
+				}
+				system.run(() => {
+					showPlotFriends(player);
+				});
+			}
+		}).catch(e => {
+			console.error(e, e.stack);
+		});
+	}
+}
+
+function showPlotFriends(player) {
+	if (player) {
+		// build up general text to show on window/form
+		let message = "You can add friends to your plots. Friends can interact with blocks and items within your plot. They cannot destroy nor build.";
+		message = message + "\n\n";
+		message = message + "§nYour current friend list:§r";
+		message = message + "\n";
+		
+		//build up the players current friend list also to show on the window/form
+		let friendlist=""; 
+		const dummy = world.getDynamicProperty("friends_" + player.id.toString()); // the friendslist is a string with ; seperated userid's
+		if (dummy == null){
+			friendlist = "    no friends yet\n";
+		} else {
+			const dummylist = dummy.split(";");
+			for (let friend in dummylist) {
+				if (friend > 0){
+					const getusername = world.getDynamicProperty("user_"+dummylist[friend]);
+					if (getusername == null){
+						friendlist = friendlist + "    - [" + dummylist[friend] + "]\n";
+					} else {
+						friendlist = friendlist + "    - " + getusername + "\n";
+					}
+				}
+			}
+		}
+		friendlist=friendlist+"\n"; 
+		
+		const form = new ActionFormData()
+			.title("Plot Friends Manager")
+			.body(message + friendlist)
+			.button("add a friend", "textures/ui/confirm.png") //gear
+			.button("delete a friend", "textures/ui/cancel.png"); //crossout
+		
+		form.show(player).then(r => {
+		// This will stop the code when the player closes the form
+			if (r.canceled) {
+				//console.warn("form canceled");
+				return;
+			}else{
+				let response = r.selection;
+				switch (response) {
+					case 0:
+						system.run(() => {
+							showPlotADDfriends(player);
+						});
+						break;
+					case 1:
+						system.run(() => {
+							showPlotDELETEfriends(player);
+						});
+						break;				
+					default:
+						// Use this when your button doesn't have a function yet
+						// You don't need to use "break" on default case
+						// Remember to place the default on very bottom
+				}
+			}
+		}).catch(e => {
+			console.error(e, e.stack);
+		});
 	}
 }
 
@@ -780,7 +990,8 @@ function showPlotMainWindow(player) { //, log: (message: string, status?: number
 			.button("claim a new plot", "textures/ui/confirm.png") //gear
 			.button("delete a plot", "textures/ui/cancel.png") //crossout
 			.button("show my plot info", "textures/items/book_writable.png")
-			.button("buy permits", "textures/items/map_filled.png");	
+			.button("buy permits", "textures/items/map_filled.png")	
+			.button("plot friends", "textures/ui/FriendsIcon.png");
 			
 		form.show(player).then(r => {
 		// This will stop the code when the player closes the form
@@ -810,6 +1021,11 @@ function showPlotMainWindow(player) { //, log: (message: string, status?: number
 							showPlotPermitWindow(player);
 						});
 						break;
+					case 4:
+						system.run(() => {
+							showPlotFriends(player);
+						});
+						break;						
 					default:
 						// Use this when your button doesn't have a function yet
 						// You don't need to use "break" on default case
@@ -827,9 +1043,7 @@ function showPlotMainWindow(player) { //, log: (message: string, status?: number
 
 
 world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {
-	//console.warn ("player " + playerName + "(" + playerId + ") joined the game");
-	//we store the playername as a dynimc prop on the world object so that it can be read even when the player is offline
-
+	//we store the playername as a dynimc prop on the world object so that the player name can be retreived even when the player is offline
 	world.setDynamicProperty("user_" + playerId.toString(), playerName);
 });
 
