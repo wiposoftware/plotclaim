@@ -19,8 +19,11 @@ Minecraft Bedrock Plotclaim Addon.
 - A plot has a 16x16 block dimension.
 - The plot has no vertical limits it extends from bedrock to the sky. 
 - A player can buy permits to extend the number of plots he or she can claim. (1 permit equals 4 plots)
-- Plots can not be claimed at worldspawn.
 - Add Plot friends. Plot friends can interact with doors/chests/beds/... in your plots.
-- The plotclaim GUI can be opened by pressing the use button (right click) on the plotclaim item in slot 9 your inventory.
+- The plotclaim GUI can be opened by pressing the use button (right click) on the plotclaim item in slot 9 of your inventory.
+
+- spawn protection : Plots can not be claimed at worldspawn.
+- explosion protection : Creepers/TNT/... will not explode inside a plot.
+- neighbour protection : players can not claim plots next to each other unless they are friends.
 
 

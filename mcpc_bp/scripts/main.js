@@ -8,8 +8,14 @@ import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } fr
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
-  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.1 - By WIPO");
+  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.2 - By WIPO");
 }, 400);
+
+/*system.run(() => {
+	world.setDynamicProperty("plot_-1_2", "0123456789");
+	world.setDynamicProperty("plot_-2_2", "0123456789");
+	world.setDynamicProperty("friends_0123456789", ";987654321;3579154862;-8589934591");
+});*/
 
 /*
 world.afterEvents.playerSpawn.subscribe(event => {
@@ -25,18 +31,21 @@ world.afterEvents.playerSpawn.subscribe(event => {
 
 
 const PLOT_SIZE = 16;
-const MAX_PLOT_PER_PERMIT = 4;
-const SPAWN_PROTECTION = 45; // players cannot claim a plot when there distance to worldspawn is less then this value 
+const PLOTS_PER_PERMIT = 4;
+const SPAWN_PROTECTION = 45; // players cannot claim a plot that is close to worldspawn. this value is the min players distance in blocks to wordspawn.
 
 const DIRT_COST = 8;
 const LOG_COST = 4;
 const PC_MSG_PREFIX = "§4§lPLOTCLAIM:§f§r ";
 
+const neighbour_protection = true; //when true players cannot claim plots next to each other unless they are mutual friends.
+const explosion_protection = true; //when true a plot is protected against explosion (creepers/tnt) inside the plot.
+const worldspawn_protection = true; // when true players can not claim a plot at worldspawn. this is used together with SPAWN_PROTECTION.
 
 function maxclaims(player) {
 	const permits = player.getDynamicProperty("plot_permits");
 	if (permits > 0) {  
-		const playermaxclaims = permits * MAX_PLOT_PER_PERMIT;
+		const playermaxclaims = permits * PLOTS_PER_PERMIT;
 		return playermaxclaims;
 	} else {
 		return 0;
@@ -72,12 +81,14 @@ function getPlotCorners_fromposition(PositionX, PositionZ) {
 
 
 world.beforeEvents.explosion.subscribe((event) => {
-	if(event.dimension.id == "minecraft:overworld") {	
-		//console.warn(event.source.id +" - "+ event.source.typeId);	
-		const plot = location_to_plot(event.source.location.x, event.source.location.z);
-		const plotowner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
-		if (!(plotowner==null)){
-			event.cancel = true;
+	if (explosion_protection == true) {
+		if(event.dimension.id == "minecraft:overworld") {	
+			//console.warn(event.source.id +" - "+ event.source.typeId);	
+			const plot = location_to_plot(event.source.location.x, event.source.location.z);
+			const plotowner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+			if (!(plotowner==null)){
+				event.cancel = true;
+			}
 		}
 	}
 });
@@ -404,7 +415,8 @@ world.afterEvents.chatSend.subscribe((event) => {
   const player = event.sender;
   const msg = event.message;
   //only use this in development/debug
-  /*if(player.dimension.id == "minecraft:overworld") {
+  /*
+  if(player.dimension.id == "minecraft:overworld") {
 	if (msg == "!claim") {
 		claim_plot(player, null);
 	}
@@ -466,9 +478,38 @@ function generate_plotname(player){
 	return myplotname;
 }
 
+function check_plot_neighbours(playerid, plotx, plotz) {
+	let neighbour = false; // ok lets start with saying there are no neighbours.
+	
+	if (neighbour_protection == true) { // we only need to do this check if protection is enabled.
+		//loop trough all neighbouring plots
+		for (let x = plotx-2; x <= plotx+2; x++) {
+			for (let z = plotz-2; z <= plotz+2; z++) {
+				let owner = world.getDynamicProperty("plot_" + x.toString() + "_" + z.toString());
+				if (owner != null) { // check if plot is claimed
+					if (owner != playerid) { // check that it is owned by another player and not yourself.
+						//const my_friendlist = world.getDynamicProperty("friends_" + playerid.toString());
+						const owner_friendlist = world.getDynamicProperty("friends_" + owner.toString());
+						console.warn(owner_friendlist);
+						if (owner_friendlist == null) { // if the owner of the neighbouring plot doesn't have any friends, its a neighbour.
+							neighbour = true;
+						} else {
+							if (owner_friendlist.indexOf(playerid) < 0) { // now check if this player is (not) listed in the owners friend list.
+								neighbour = true;
+							}
+						}
+					}
+				}
+			}			
+		}
+	}
+	
+	return neighbour;
+}
+
 function claim_plot(player, myplotname){
 	if(player.dimension.id == "minecraft:overworld") {
-		if (player_distance_to_spawn(player) >= SPAWN_PROTECTION){
+		if (player_distance_to_spawn(player) >= SPAWN_PROTECTION || worldspawn_protection == false){
 			// ok player wants to claim a plot, check if this is possible then claim it.
 			const plyx = player.location.x;
 			const plyz = player.location.z;
@@ -480,40 +521,45 @@ function claim_plot(player, myplotname){
 			
 
 			
-			if (current_plot_count < playermaxclaims) {
-				if (world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString()) == null) {
-					if (player_can_buy_plot(player)){
-						//if no plotname is given, generate something
-						if (myplotname==null){
-							myplotname=generate_plotname(player);
-						}					
-						
-						world.setDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString(), player.id);
-						world.setDynamicProperty("plotname_" + plot.x.toString() + "_" + plot.z.toString(), myplotname);
-						
-						const plotlimits = getPlotCorners(plot.x, plot.z);
-						//system.runJob(block_fillarea(plotlimits.Xmin, plotlimits.Xmax, plotlimits.Zmin, plotlimits.Zmax,plyy-1,plyy-1, "minecraft:cobblestone"));
-						system.run(() => {
-							player.sendMessage(PC_MSG_PREFIX+"Plot claimed!!");
+			if (current_plot_count < playermaxclaims) { // check if player is not claiming to much plots²
+				if (world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString()) == null) { //check if this plot is already claimed
+					if (check_plot_neighbours(player.id, plot.x, plot.z) == false) { //check if there are neighbours, plots claimed by other players.
+						if (player_can_buy_plot(player)){
+							//if no plotname is given, generate something
+							if (myplotname==null){
+								myplotname=generate_plotname(player);
+							}					
 							
-							// place a fence on every corner of the plot
-							block_set(plotlimits.Xmin,plyy,plotlimits.Zmin, "oak_fence");
-							block_set(plotlimits.Xmin,plyy,plotlimits.Zmax, "oak_fence");
-							block_set(plotlimits.Xmax,plyy,plotlimits.Zmin, "oak_fence");
-							block_set(plotlimits.Xmax,plyy,plotlimits.Zmax, "oak_fence");
+							world.setDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString(), player.id);
+							world.setDynamicProperty("plotname_" + plot.x.toString() + "_" + plot.z.toString(), myplotname);
 							
-							//give the player a gift the first time he claims a plot
-							//const privatechest = new ItemStack("minecraft:ender_chest", 1);
-							if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
-								const privatechest = new ItemStack("minecraft:chest", 1);
-								const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
-								if (player_inventory && player_inventory.container) {
-									player_inventory.container.addItem(privatechest);
-									player.sendMessage("Check your inventory you have got a little present.");
-									player.setDynamicProperty("hasreceivedgift", 1);
+							const plotlimits = getPlotCorners(plot.x, plot.z);
+							//system.runJob(block_fillarea(plotlimits.Xmin, plotlimits.Xmax, plotlimits.Zmin, plotlimits.Zmax,plyy-1,plyy-1, "minecraft:cobblestone"));
+							system.run(() => {
+								player.sendMessage(PC_MSG_PREFIX+"Plot claimed!!");
+								
+								// place a fence on every corner of the plot
+								block_set(plotlimits.Xmin,plyy,plotlimits.Zmin, "oak_fence");
+								block_set(plotlimits.Xmin,plyy,plotlimits.Zmax, "oak_fence");
+								block_set(plotlimits.Xmax,plyy,plotlimits.Zmin, "oak_fence");
+								block_set(plotlimits.Xmax,plyy,plotlimits.Zmax, "oak_fence");
+								
+								//give the player a gift the first time he claims a plot
+								//const privatechest = new ItemStack("minecraft:ender_chest", 1);
+								if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
+									const privatechest = new ItemStack("minecraft:chest", 1);
+									const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+									if (player_inventory && player_inventory.container) {
+										player_inventory.container.addItem(privatechest);
+										player.sendMessage("Check your inventory you have got a little present.");
+										player.setDynamicProperty("hasreceivedgift", 1);
+									}
 								}
-							}
-						});
+							});
+						}
+					} else {
+						player.sendMessage(PC_MSG_PREFIX+"Cannot claim this plot, to close to another players claim.");
+						player.sendMessage(PC_MSG_PREFIX+"Only mutual plot friends can claim a plot next to each other.");
 					}
 				} else {
 				  player.sendMessage(PC_MSG_PREFIX+"Plot Already Claimed.");
@@ -640,7 +686,7 @@ function showPlotClaimWindow(player) { //, log: (message: string, status?: numbe
 					let infotext = "you are now at plot:\n" + plot; 
 					infotext = infotext + "\n\nYou need these resources to claim this plot:\n -dirt : " + needed_dirt_amount.toString() + "\n -logs : " + needed_log_amount.toString(); 
 					infotext = infotext + "\n\nType a unique name for your new plot:";
-					form.textField(infotext, "choose your plot name", "my plot");
+					form.textField(infotext, "my plot");
 
 					form.show(player).then(r => {
 					// This will stop the code when the player closes the form
