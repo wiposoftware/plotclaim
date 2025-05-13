@@ -1,7 +1,8 @@
 // ct:/main.js
-import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes } from "@minecraft/server";
+import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes, BlockVolume, BlockComponentRegistry} from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-
+import { MolangVariableMap } from "@minecraft/server";
+import { teleport } from "./teleport.js";
 
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 
@@ -10,6 +11,11 @@ system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
   world.sendMessage("Welcome to PlotClaim! BETA release v1.0.2 - By WIPO");
 }, 400);
+
+system.beforeEvents.startup.subscribe((init) => {
+    init.blockComponentRegistry.registerCustomComponent( "wipo:teleport_components", new teleport());
+});
+
 
 /*system.run(() => {
 	world.setDynamicProperty("plot_-1_2", "0123456789");
@@ -28,6 +34,11 @@ world.afterEvents.playerSpawn.subscribe(event => {
     //}
 });
 */
+
+// in minecraft the overworld Y dimensions have been changed multiple times. If in the future minecraft changes again the overworld Y dimensions
+// we just need to change the underneath 2 variables and our plotclaim code is fully up to date
+const OVERWORLD_Y_MIN = -64;
+const OVERWORLD_Y_MAX = 320;
 
 
 const PLOT_SIZE = 16;
@@ -69,7 +80,7 @@ function getPlotCorners(PlotX, PlotZ) {
 
 function getPlotCorners_fromposition(PositionX, PositionZ) {
   const plotdata = location_to_plot(PositionX, PositionZ);
-  return getPlotCorners(plotdata.chunkX, plotdata.chunkZ)
+  return getPlotCorners(plotdata.x, plotdata.z)
 }
 
 
@@ -78,7 +89,10 @@ function getPlotCorners_fromposition(PositionX, PositionZ) {
 //});
 
 
+function spawn_teleport_particles() {
+// we will only spawn particles for teleports which owner/player is online.
 
+}
 
 world.beforeEvents.explosion.subscribe((event) => {
 	if (explosion_protection == true) {
@@ -97,19 +111,58 @@ world.beforeEvents.playerPlaceBlock.subscribe((event) => {
 	const player = event.player;
 	const block = event.block;
 	const plot = location_to_plot(block.x, block.z);
-  
-	if(player.dimension.id == "minecraft:overworld") {
-		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
-		if (plot_owner == null) {
-		//nobody is the owner you can place blocks
-		} else {
-			if (plot_owner == player.id) {
-			// you are to owner you can place blocks
+	let plot_owner;
+	let cancel_teleport=false;
+	
+	///// this is the checklist for placing teleport blocks
+	if (event.permutationBeingPlaced.type.id == "wipo:teleport") {
+		if(player.dimension.id == "minecraft:overworld") { // make sure player is not placing teleport in other dimensions
+			plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+			if (plot_owner == null) {
+				// cannot place teleport in unclaimed land
+				cancel_teleport=true;
 			} else {
-				event.cancel = true;
-				system.run(() => {
-					player.sendMessage(PC_MSG_PREFIX+"Cannot place block, you dont own this plot.");
-				});
+				if (plot_owner != player.id) {
+					// you are not to owner you cannot place the teleport
+					cancel_teleport=true;	
+				} else { 
+					// you are the owner now we must check if you already placed a teleport in this plot. (max 1 teleport per plot allowed)
+					const plotcorners = getPlotCorners_fromposition(block.x, block.z); // get the plotcorners from the plot where this teleport block is placed
+					const fromvector = { x : plotcorners.Xmin, y : OVERWORLD_Y_MIN, z : plotcorners.Zmin}; //vertor3 start point
+					const tovector = {x : plotcorners.Xmax, y : OVERWORLD_Y_MAX, z : plotcorners.Zmax};	//vector3 end point
+					const volume = new BlockVolume(fromvector, tovector);
+					const filter = {includeTypes : ["wipo:teleport"]};
+					const teleportblocks = player.dimension.getBlocks(volume,filter);
+					if (teleportblocks.getCapacity() > 0) {
+						// we found a teleport block on this plot 
+						cancel_teleport=true;
+					};
+				}
+			}
+		} else {
+			cancel_teleport=true;
+		}
+		if (cancel_teleport == true){
+			event.cancel = true;
+			system.run(() => {
+				player.sendMessage(PC_MSG_PREFIX+"A teleport can only be placed inside your own plot. And you can only place 1 teleport per plot.");
+			});
+		}
+	} else {
+		///// this is the plot protection part, players cannot place any kind of block in another plot
+		if(player.dimension.id == "minecraft:overworld") {
+			plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+			if (plot_owner == null) {
+			//nobody is the owner you can place blocks
+			} else {
+				if (plot_owner == player.id) {
+				// you are to owner you can place blocks
+				} else {
+					event.cancel = true;
+					system.run(() => {
+						player.sendMessage(PC_MSG_PREFIX+"Cannot place block, you dont own this plot.");
+					});
+				}
 			}
 		}
 	}
@@ -1114,3 +1167,4 @@ world.afterEvents.playerSpawn.subscribe( event => {
 		player.setDynamicProperty("plot_permits", 1);  
 	}
 });
+
