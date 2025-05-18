@@ -1,0 +1,23 @@
+{
+    "format_version": "1.21.80",
+    "minecraft:recipe_shaped": {
+        "description": {
+            "identifier": "wipo:teletoken"
+        },
+        "tags": ["crafting_table"],
+        "pattern": [" C ", "CLC", " C "],
+        "key": {
+            "C": "minecraft:copper_ingot",
+            "L": {"tag": "minecraft:logs"}
+        },
+        "result": [
+            {
+                "item": "wipo:teletoken",
+                "count": 4
+            }
+        ],
+		"unlock": {
+			"context": "AlwaysUnlocked"
+		}
+    }
+}

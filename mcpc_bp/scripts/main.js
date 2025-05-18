@@ -1,25 +1,27 @@
 // ct:/main.js
 import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes, BlockVolume, BlockComponentRegistry} from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-import { MolangVariableMap } from "@minecraft/server";
-import { teleport } from "./teleport.js";
+//import { MolangVariableMap } from "@minecraft/server";
+import { TelePort } from "./teleport.js";
+
 
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
-  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.2 - By WIPO");
+  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.3 - By WIPO");
 }, 400);
 
 system.beforeEvents.startup.subscribe((init) => {
-    init.blockComponentRegistry.registerCustomComponent( "wipo:teleport_components", new teleport());
+    init.blockComponentRegistry.registerCustomComponent( "wipo:teleport_components", new TelePort());
 });
 
-
-/*system.run(() => {
+/*
+system.run(() => {
 	world.setDynamicProperty("plot_-1_2", "0123456789");
 	world.setDynamicProperty("plot_-2_2", "0123456789");
+    world.setDynamicProperty("teleport_-1_2", "-5_-60_38");
 	world.setDynamicProperty("friends_0123456789", ";987654321;3579154862;-8589934591");
 });*/
 
@@ -89,10 +91,6 @@ function getPlotCorners_fromposition(PositionX, PositionZ) {
 //});
 
 
-function spawn_teleport_particles() {
-// we will only spawn particles for teleports which owner/player is online.
-
-}
 
 world.beforeEvents.explosion.subscribe((event) => {
 	if (explosion_protection == true) {
@@ -114,55 +112,19 @@ world.beforeEvents.playerPlaceBlock.subscribe((event) => {
 	let plot_owner;
 	let cancel_teleport=false;
 	
-	///// this is the checklist for placing teleport blocks
-	if (event.permutationBeingPlaced.type.id == "wipo:teleport") {
-		if(player.dimension.id == "minecraft:overworld") { // make sure player is not placing teleport in other dimensions
-			plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
-			if (plot_owner == null) {
-				// cannot place teleport in unclaimed land
-				cancel_teleport=true;
-			} else {
-				if (plot_owner != player.id) {
-					// you are not to owner you cannot place the teleport
-					cancel_teleport=true;	
-				} else { 
-					// you are the owner now we must check if you already placed a teleport in this plot. (max 1 teleport per plot allowed)
-					const plotcorners = getPlotCorners_fromposition(block.x, block.z); // get the plotcorners from the plot where this teleport block is placed
-					const fromvector = { x : plotcorners.Xmin, y : OVERWORLD_Y_MIN, z : plotcorners.Zmin}; //vertor3 start point
-					const tovector = {x : plotcorners.Xmax, y : OVERWORLD_Y_MAX, z : plotcorners.Zmax};	//vector3 end point
-					const volume = new BlockVolume(fromvector, tovector);
-					const filter = {includeTypes : ["wipo:teleport"]};
-					const teleportblocks = player.dimension.getBlocks(volume,filter);
-					if (teleportblocks.getCapacity() > 0) {
-						// we found a teleport block on this plot 
-						cancel_teleport=true;
-					};
-				}
-			}
+	///// this is the plot protection part, players cannot place any kind of block in another plot
+	if(player.dimension.id == "minecraft:overworld") {
+		plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+		if (plot_owner == null) {
+		//nobody is the owner you can place blocks
 		} else {
-			cancel_teleport=true;
-		}
-		if (cancel_teleport == true){
-			event.cancel = true;
-			system.run(() => {
-				player.sendMessage(PC_MSG_PREFIX+"A teleport can only be placed inside your own plot. And you can only place 1 teleport per plot.");
-			});
-		}
-	} else {
-		///// this is the plot protection part, players cannot place any kind of block in another plot
-		if(player.dimension.id == "minecraft:overworld") {
-			plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
-			if (plot_owner == null) {
-			//nobody is the owner you can place blocks
+			if (plot_owner == player.id) {
+			// you are to owner you can place blocks
 			} else {
-				if (plot_owner == player.id) {
-				// you are to owner you can place blocks
-				} else {
-					event.cancel = true;
-					system.run(() => {
-						player.sendMessage(PC_MSG_PREFIX+"Cannot place block, you dont own this plot.");
-					});
-				}
+				event.cancel = true;
+				system.run(() => {
+					player.sendMessage(PC_MSG_PREFIX+"Cannot place block, you dont own this plot.");
+				});
 			}
 		}
 	}
@@ -468,7 +430,7 @@ world.afterEvents.chatSend.subscribe((event) => {
   const player = event.sender;
   const msg = event.message;
   //only use this in development/debug
-  /*
+  
   if(player.dimension.id == "minecraft:overworld") {
 	if (msg == "!claim") {
 		claim_plot(player, null);
@@ -494,7 +456,7 @@ world.afterEvents.chatSend.subscribe((event) => {
 	{
 		listdynamicprop(player);
 	}
-  }*/
+  }
 });
 
 
@@ -1147,8 +1109,7 @@ world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {
 });
 
 world.afterEvents.playerSpawn.subscribe( event => {
-    //in this event we got the playerId, but we need to find the player object.
-	//loop trough all players and find this player.
+
 	const player = event.player;
 	
 	const plotclaimitem = new ItemStack("wipo:plotclaim", 1);

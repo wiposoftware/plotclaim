@@ -1,4 +1,5 @@
 pack.wipo:name=Wipo's PLOTCLAIM Resource Pack	#
 pack.wipo:description=Claim een ​​perceel. U bent de eigenaar van dit perceel en alleen u mag erop bouwen.	#
 item.wipo:plotclaim=Plotclaim	#
+item.wipo:teletoken=Teletoken	#
 tile.wipo:teleport.name=Plotclaim Teleport	#

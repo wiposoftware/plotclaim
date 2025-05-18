@@ -1,4 +1,5 @@
 pack.wipo:name=Wipo's PLOTCLAIM Resource Pack	#
 pack.wipo:description=Claim a plot. You will be to owner of this plot and only you will be able to build on this plot.	#
 item.wipo:plotclaim=Plotclaim	#
+item.wipo:teletoken=Teletoken	#
 tile.wipo:teleport.name=Plotclaim Teleport	#
