@@ -430,7 +430,7 @@ world.afterEvents.chatSend.subscribe((event) => {
   const player = event.sender;
   const msg = event.message;
   //only use this in development/debug
-  
+  /*
   if(player.dimension.id == "minecraft:overworld") {
 	if (msg == "!claim") {
 		claim_plot(player, null);
@@ -456,7 +456,7 @@ world.afterEvents.chatSend.subscribe((event) => {
 	{
 		listdynamicprop(player);
 	}
-  }
+  }*/
 });
 
 
