@@ -1,0 +1,17 @@
+{
+  "format_version": "1.21.40",
+  "wipo:teleport": {
+    "textures": {
+      "up": "wipo_teleport",
+      "down": "wipo_teleport",
+      "north": "wipo_teleport",
+      "south": "wipo_teleport",
+      "east": "wipo_teleport",
+      "west": "wipo_teleport"
+    },
+    "carried_textures": "wipo_teleport",
+    "isotropic": true,
+    "ambient_occlusion_exponent": 1,
+    "sound": "stone"
+  }
+}

@@ -1,6 +1,8 @@
 // ct:/main.js
-import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes } from "@minecraft/server";
+import { world, system, BlockPermutation, ItemStack, EntityInventoryComponent, EntityComponentTypes, ItemComponentTypes, BlockVolume, BlockComponentRegistry} from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
+//import { MolangVariableMap } from "@minecraft/server";
+import { TelePort } from "./teleport.js";
 
 
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
@@ -8,12 +10,18 @@ import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } fr
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
-  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.2 - By WIPO");
+  world.sendMessage("Welcome to PlotClaim! BETA release v1.0.3 - By WIPO");
 }, 400);
 
-/*system.run(() => {
+system.beforeEvents.startup.subscribe((init) => {
+    init.blockComponentRegistry.registerCustomComponent( "wipo:teleport_components", new TelePort());
+});
+
+/*
+system.run(() => {
 	world.setDynamicProperty("plot_-1_2", "0123456789");
 	world.setDynamicProperty("plot_-2_2", "0123456789");
+    world.setDynamicProperty("teleport_-1_2", "-5_-60_38");
 	world.setDynamicProperty("friends_0123456789", ";987654321;3579154862;-8589934591");
 });*/
 
@@ -28,6 +36,11 @@ world.afterEvents.playerSpawn.subscribe(event => {
     //}
 });
 */
+
+// in minecraft the overworld Y dimensions have been changed multiple times. If in the future minecraft changes again the overworld Y dimensions
+// we just need to change the underneath 2 variables and our plotclaim code is fully up to date
+const OVERWORLD_Y_MIN = -64;
+const OVERWORLD_Y_MAX = 320;
 
 
 const PLOT_SIZE = 16;
@@ -69,14 +82,13 @@ function getPlotCorners(PlotX, PlotZ) {
 
 function getPlotCorners_fromposition(PositionX, PositionZ) {
   const plotdata = location_to_plot(PositionX, PositionZ);
-  return getPlotCorners(plotdata.chunkX, plotdata.chunkZ)
+  return getPlotCorners(plotdata.x, plotdata.z)
 }
 
 
 //world.getAllPlayers().forEach(function (player) {
 //  console.warn(player.name);
 //});
-
 
 
 
@@ -97,9 +109,12 @@ world.beforeEvents.playerPlaceBlock.subscribe((event) => {
 	const player = event.player;
 	const block = event.block;
 	const plot = location_to_plot(block.x, block.z);
-  
+	let plot_owner;
+	let cancel_teleport=false;
+	
+	///// this is the plot protection part, players cannot place any kind of block in another plot
 	if(player.dimension.id == "minecraft:overworld") {
-		const plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
+		plot_owner = world.getDynamicProperty("plot_" + plot.x.toString() + "_" + plot.z.toString());
 		if (plot_owner == null) {
 		//nobody is the owner you can place blocks
 		} else {
@@ -1094,8 +1109,7 @@ world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {
 });
 
 world.afterEvents.playerSpawn.subscribe( event => {
-    //in this event we got the playerId, but we need to find the player object.
-	//loop trough all players and find this player.
+
 	const player = event.player;
 	
 	const plotclaimitem = new ItemStack("wipo:plotclaim", 1);
@@ -1114,3 +1128,4 @@ world.afterEvents.playerSpawn.subscribe( event => {
 		player.setDynamicProperty("plot_permits", 1);  
 	}
 });
+

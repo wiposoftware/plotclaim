@@ -4,6 +4,9 @@
 	"texture_data": {
 		"wipo_plotclaim": {
 			"textures": "textures/items/plotclaim"
+		},
+		"wipo_teletoken": {
+			"textures": "textures/items/teletoken"
 		}
 	}
 }

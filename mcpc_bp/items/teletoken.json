@@ -1,0 +1,18 @@
+{
+    "format_version": "1.21.70",
+    "minecraft:item": 
+	{
+        "description": {
+            "identifier": "wipo:teletoken",
+            "menu_category": {
+                "category": "items"
+            }
+        },
+        "components": {
+            "minecraft:max_stack_size": 64,
+			"minecraft:icon": "wipo_teletoken",
+			"minecraft:can_destroy_in_creative": false,
+			"minecraft:should_despawn": false
+        }
+    }
+}
