@@ -1,15 +1,16 @@
+//© 2025 - WIPOSOFTWARE - https://github.com/wiposoftware/plotclaim
+
 import { Vector3 } from "./vector3.js";
-import { world, system, BlockVolume, EntityComponentTypes } from "@minecraft/server";
+import { world, system, BlockVolume, EntityComponentTypes, ItemStack} from "@minecraft/server";
 
 const OVERWORLD_Y_MIN = -64;
 const OVERWORLD_Y_MAX = 320;
 
 const PLOT_SIZE = 16;
 const PLOTS_PER_PERMIT = 4;
+const MAX_PERMIT = 4;
 const SPAWN_PROTECTION = 45; // players cannot claim a plot that is close to worldspawn. this value is the min players distance in blocks to wordspawn.
 
-const DIRT_COST = 8;
-const LOG_COST = 4;
 const PC_MSG_PREFIX = "§4§lPLOTCLAIM:§f§r ";
 
 //dynamic properties prefixes.
@@ -18,8 +19,23 @@ const DP_PLOTNAME = "plotname_";
 const DP_TELEPORT = "teleport_";
 const DP_USERNAME = "user_";
 const DP_FRIEND = "friends_";
+const DP_PERMIT = "plot_permits";
 
-//teleport cost_multiplier
+
+const neighbour_protection = true; //when true players cannot claim plots next to each other unless they are mutual friends.
+const explosion_protection = true; //when true a plot is protected against explosion (creepers/tnt) inside the plot.
+const worldspawn_protection = true; // when true players can not claim a plot at worldspawn. this is used together with SPAWN_PROTECTION.
+
+
+
+function block_set(X, Y, Z, blocktype ) {
+    const overworld = world.getDimension("overworld"); // gets the dimension of type overworld.
+	
+    const block = overworld.getBlock({ x: X, y: Y, z: Z }); // get the block at the current loop coordinates.
+    if (block) {
+		block.setType(blocktype); // if the block is loaded, set it to cobblestone.
+	}
+}
 
 
 export class PlotSystem {
@@ -42,7 +58,7 @@ export class PlotSystem {
 					for (let i = 0; i < inventory.container.size ; i++) {
 						const item = inventory.container.getItem(i);
 						if (!(item === undefined)){
-							if (item.typeId == resource.typeId && item.amount >= resource.amount)
+							if (item.typeId.includes(resource.typeId) && item.amount >= resource.amount)
 							{
 								OK_resource_counter = OK_resource_counter+1; // ok we found this resource increase counter.
 								if (pay == true) { // if we have to pay this resource we store the inventory slot and item information for later
@@ -163,7 +179,7 @@ export class PlotSystem {
 	}
 	
 	get_teleport (plot) {
-		//argument plot is the plot vector3 (so not a world location vector3)
+		//argument plot is the plot string (so not a world location vector3)
 		//this function will then return the exact world location for the teleport in this plot
 		const teleportlocation = world.getDynamicProperty(plot.replace(DP_PLOT, DP_TELEPORT));
 		if (!(teleportlocation === undefined)){
@@ -221,6 +237,7 @@ export class PlotSystem {
 			return plot_owner;
 		}
 	}
+	
 	get_plot_name (plot) {
 		// this function will get the plot friendly name, plot must be a plot vector3, not a location vector3.
 		if (plot.x === undefined || plot.z === undefined) {
@@ -301,5 +318,389 @@ export class PlotSystem {
 		return false;
 	}
 	
+	plot_count(player) {
+		let plotcounter = 0; 
+		// loop throuh all claimed plots and count how many plots are claimed by this player
+		let world_dynamic_property_list = world.getDynamicPropertyIds();
+		for (let world_dynamic_property_name of world_dynamic_property_list) {
+			if (world_dynamic_property_name.indexOf(DP_PLOT) >= 0) {
+				const plotowner = world.getDynamicProperty(world_dynamic_property_name);
+				if (plotowner == player.id){
+					plotcounter = plotcounter+1;
+				}
+			}
+		}	
+		return plotcounter;
+	}
 	
+	get_plot_list(player) {
+		
+		if (player === undefined){return;}
+
+		let plotlist = [];
+
+		// loop throuh all claimed plots build up a list of all plots that belong to this player
+		let world_dynamic_property_list = world.getDynamicPropertyIds();
+		for (let world_dynamic_property_name of world_dynamic_property_list) {
+			if (world_dynamic_property_name.indexOf(DP_PLOT) >= 0) {
+				const plotowner = world.getDynamicProperty(world_dynamic_property_name);
+				if (plotowner == player.id){
+					const plotlocation = world_dynamic_property_name.substring(world_dynamic_property_name.indexOf("_")+1);
+					const plotfriendlyname = world.getDynamicProperty(DP_PLOTNAME + plotlocation);
+					plotlist.push({id : world_dynamic_property_name, name : plotfriendlyname});
+				}
+			}
+		}
+		
+		return plotlist;
+	}
+	
+	deleteplot(plot) {
+		// this function will delete a plot. This means the terrain will be accessible to all players again.
+		// the plot argument should be a plot vertor3 not a world location
+		if (!(plot === undefined)){
+			const plotstring = this.plot_string(plot);
+			if (!(plotstring === undefined)){
+				world.setDynamicProperty(DP_PLOT + plotstring, null);   // delete plot
+				world.setDynamicProperty(DP_PLOTNAME + plotstring, null); //delete plot name
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	
+	add_permit(player) {
+		// this function will add a additional permit to a player 
+		if (!(player === undefined)){   // check if player is defined
+			//let permits = player.getDynamicProperty(DP_PERMIT) // as from v1.1 we store permits in world. for offline manipulation
+			let permits = world.getDynamicProperty(DP_PERMIT+player.id.toString()) //read current permit value
+			
+			// just check that permits value and if needed fallback to default (1)
+			if ( permits === undefined || permits < 0 ){
+				permits = 1;
+			}
+			
+			permits = permits + 1; // increase the permits
+			
+			// do another check on max permits
+			if ( permits > MAX_PERMIT) {
+				permit = MAX_PERMIT;
+			}
+			
+			world.setDynamicProperty(DP_PERMIT+player.id.toString(), permits); // save the new permit value 
+		}
+	}
+	
+	get_permits(player) {
+		// this function returns the number of permits that a player has. 
+		if (!(player === undefined)){
+			//const permits = player.getDynamicProperty(DP_PERMIT) // as from v1.1 we store permits in world, for offline manipulation
+			const permits = world.getDynamicProperty(DP_PERMIT+player.id.toString())
+			if (!(permits === undefined)){
+				if (permits > 0){
+					if (permits < MAX_PERMIT) {
+						return permits;
+					} else{
+						return MAX_PERMIT; 
+					}
+				}
+			}
+		}
+		// if we are here we did not pass the test and we return 1 permit. everyon always has at least 1 permit
+		return 1;
+	}
+	
+	max_permits() {
+		return MAX_PERMIT;
+	}
+	
+	get_maxclaims(player) {
+			const permits = this.get_permits(player);
+			const playermaxclaims = permits * PLOTS_PER_PERMIT;
+			return playermaxclaims;
+	}
+	
+	IsPlayerToCloseToWorldSpawn(player) {
+		if (player === undefined){return false;}
+		
+		let distance=0;
+		const spawnlocation = world.getDefaultSpawnLocation();
+		distance = Math.abs(Math.sqrt((spawnlocation.z - player.location.z) * (spawnlocation.z - player.location.z) + (spawnlocation.x - player.location.x) * (spawnlocation.x - player.location.x)));
+
+		if (distance >= SPAWN_PROTECTION || worldspawn_protection == false){
+			return false;
+		} else {
+			return true;
+		}
+	}
+	
+	
+	PlotHasOtherNeighbours(player, plot) {
+		let neighbour = false; // ok lets start with saying there are no neighbours.
+		const plotx = plot.x;
+		const plotz = plot.z;
+		
+		if (neighbour_protection == true) { // we only need to do this check if protection is enabled.
+			//loop trough all neighbouring plots
+			for (let x = plotx-2; x <= plotx+2; x++) {
+				for (let z = plotz-2; z <= plotz+2; z++) {
+					let owner = this.get_plot_owner({x : x, z : z});
+					if (owner !== undefined) { // check if plot is claimed
+						// if the plot owner is not this player or it's not owned by a mutual friend we have a neighbour.
+						if (this.is_owner_or_friend(player.id, {x : x, z : z}) == false) {
+							neighbour = true;
+						}
+					}
+				}			
+			}
+		}
+	
+		return neighbour;
+	}
+	
+	claim_plot(player, plot, myplotname){
+		//before we claim the plot we do some checks, best practice is to perform the same checks in the UI and inform the player about checks that might fail in the UI.
+		if(player.dimension.id == "minecraft:overworld") {
+			if (this.IsPlayerToCloseToWorldSpawn(player) == false){
+				// ok player wants to claim a plot, check if this is possible then claim it.
+				if (this.plot_count(player) < this.get_maxclaims(player)) { // check if player is not claiming to much plots²
+					if (this.get_plot_owner(plot) === undefined) { //check if this plot is already claimed
+						if (this.PlotHasOtherNeighbours(player, plot) == false) { //check if there are neighbours, plots claimed by other players.
+							//if no plotname is given, generate something
+							if ((myplotname === undefined) || (myplotname.length==0)){
+								//myplotname=generate_plotname(player);
+								myplotname = "my plot";
+							}
+							//assign the plot to the player and save the plotname
+							const plotstring = this.plot_string(plot);
+							world.setDynamicProperty(DP_PLOT + plotstring, player.id);
+							world.setDynamicProperty(DP_PLOTNAME + plotstring, myplotname);
+							
+							//mark the plot on the minecraftworld with 4 fences.
+							const plotlimits = this.plot_to_plotvolume(plot);
+							//system.runJob(block_fillarea(plotlimits.Xmin, plotlimits.Xmax, plotlimits.Zmin, plotlimits.Zmax,plyy-1,plyy-1, "minecraft:cobblestone"));
+							system.run(() => {							
+								// place a fence on every corner of the plot
+								block_set(plotlimits.from.x,player.location.y,plotlimits.from.z, "oak_fence");
+								block_set(plotlimits.from.x,player.location.y,plotlimits.to.z, "oak_fence");
+								block_set(plotlimits.to.x,player.location.y,plotlimits.from.z, "oak_fence");
+								block_set(plotlimits.to.x,player.location.y,plotlimits.to.z, "oak_fence");
+								
+								//give the player a gift the first time he claims a plot
+								//const privatechest = new ItemStack("minecraft:ender_chest", 1);
+								if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
+									const privatechest = new ItemStack("minecraft:chest", 1);
+									const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+									if (player_inventory && player_inventory.container) {
+										player_inventory.container.addItem(privatechest);
+										this.sendMessage(player,"Check your inventory you have got a little present.");
+										player.setDynamicProperty("hasreceivedgift", 1);
+									}
+								}
+							});
+							// we have done everyting to claim this plot, return success
+							return true;
+						} else {
+							console.warn("this plot has a neighbour");
+						}
+					} else {
+						console.warn("this plot is already claimed");
+					}
+				} else {
+					console.warn("to much plots, cannot claim plot");
+				}
+			} else {
+				console.warn ("Cannot claim a plot to close to the worldspawn");
+			}
+		} else {
+			console.warn ("cannot claim a plot in another dimension, only overworld is allowed");
+		}
+		
+		// if we end up here something went wrong.
+		return false;
+	}
+	
+	get_friends(player){
+		// this function will get the friends list stored in the minecraft world for a spicific player.
+		// the friendlist is a flat string with ; seperated userids. (e.g.";987456321;102346789;-458976123")
+		if (!(player === undefined)){
+			const friends = world.getDynamicProperty(DP_FRIEND + player.id.toString());
+			return friends;
+		}
+	}
+	
+	add_friend(player, friendid) {
+		//this funtion will add a friend (via friendid) to the friendslist of a spicific player.
+		if (player === undefined || friendid === undefined){
+			return false;
+		}
+		
+		let friendlist = this.get_friends(player);
+		
+		if (friendlist === undefined) {
+			// friendslist is null, so just make it an empty string to start with;
+			friendlist = "";
+		} else {
+			// check if this user is already a friend
+			if ( friendlist.indexOf(friendid) >= 0) {
+				// this user is already a friend -> exit
+				return false;
+			}
+		}
+
+		// now add the above userid to the current users friendlist
+		friendlist = friendlist + ";" + friendid;
+		world.setDynamicProperty(DP_FRIEND + player.id.toString(),friendlist);
+	    return true;
+	}
+	
+	delete_friend(player, friendid) {
+		//this funtion will delete a friend (via friendid) from the friendslist of a spicific player.
+		if (player === undefined || friendid === undefined){
+			return false;
+		}
+		
+		let friendlist = this.get_friends(player);
+		
+		if (friendlist === undefined) {
+			// friendslist is null, so just make it an empty string to start with;
+			// strange, something went wrong??
+			return false;
+		} else {
+			// find the location of this friend in the list.
+			const startindex = friendlist.indexOf(";"+friendid)
+			const endindex = startindex + friendid.length + 1;
+			// take all the substring (friendid) that we still need
+			const dummy1 = friendlist.substring(0,startindex);
+			const dummy2 = friendlist.substring(endindex);
+			// build the new friendslist and push it to the world
+			friendlist = dummy1+dummy2;
+			if (friendlist.length == 0) {
+				world.setDynamicProperty(DP_FRIEND + player.id.toString(),null);
+			} else {
+				world.setDynamicProperty(DP_FRIEND + player.id.toString(),friendlist);
+			}
+			return true;
+		}
+	}
+	
+	EventExplosion (event) {
+		//this event should trigger when an explosion occurs
+		if (explosion_protection == true) { // check if explosion protection is turned on
+			if(event.dimension.id == "minecraft:overworld") { // explosion protection only in overworld 
+				const plotowner = this.get_plot_owner(this.location_to_plot(event.source.location));
+				if (!(plotowner === undefined)){ //check explosion occurs within a plot claimed by a player
+					event.cancel = true; // cancel explosion
+				}
+			}
+		}
+	}
+	
+	EventPlaceBlock (event) {
+		//this event should trigger when a player places a block 
+		const player = event.player;
+		
+		///// this is the plot protection part, players cannot place any kind of block in another plot
+		if(player.dimension.id == "minecraft:overworld") {
+			const plot_owner = this.get_plot_owner(this.location_to_plot(event.block.location));
+			if (plot_owner === undefined) {
+				//nobody is the owner you can place blocks
+			} else {
+				if (plot_owner == player.id) {
+					// you are to owner you can place blocks
+				} else {
+					event.cancel = true;
+					this.send_message(player, "Cannot place block, you dont own this plot.");
+				}
+			}
+		}
+	}
+	
+	EventBreakBlock (event) {
+		//this event should trigger when a player breaks a block
+		const player = event.player;
+	  
+		if(player.dimension.id == "minecraft:overworld") {
+			const plot_owner = this.get_plot_owner(this.location_to_plot(event.block.location));
+			if (plot_owner === undefined) {
+				//nobody is the owner you can place blocks
+			} else {
+				if (plot_owner == player.id) {
+				  // you are to owner you can place blocks
+				} else {
+					event.cancel = true;
+					this.send_message(player,"Cannot break block, you dont own this plot.");
+				}
+			}
+		}	
+	}
+	
+	EventInteract (event) {
+		//this function should trigger when a player interacts with a block 
+		const player = event.player;
+			//check if a player is not spamming another players plot with water/lava buckets	
+		const plot = this.location_to_plot(event.block.location);
+
+		if(player.dimension.id == "minecraft:overworld") {
+			const plot_owner = this.get_plot_owner(plot);
+			
+			if (plot_owner === undefined) {
+				//nobody is the owner you can interact with blocks on this plot
+			} else {
+				if (this.is_owner_or_friend(player.id, plot)) {
+				  // you are the owner or a friend you can interact with blocks on this plot
+				} else {
+					event.cancel = true;
+					this.send_message(player,"Cannot interact, you dont own this plot.");
+				}
+			}
+		}		
+	}
+	
+	EventJoin (playerId, playerName) {
+		//this event should trigger when a player joins or connects to the server.
+		//we store the playername as a dynimc prop on the world object so that the player name can be retreived even when the player is offline
+		world.setDynamicProperty(DP_USERNAME + playerId.toString(), playerName);
+	}
+	
+	EventSpawn (event) {
+		//this event should trigger when a player spawns. This will be after joining the game or after dieing.
+		const player = event.player;
+	
+		//add the plotclaim item to the players inventory (with this item the plotclaim UI menus can be opened)
+		const plotclaimitem = new ItemStack("wipo:plotclaim", 1);
+		const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+		if (player_inventory && player_inventory.container) {
+			const player_inventory_slot = player_inventory.container.getSlot(8);
+			player_inventory_slot.setItem(plotclaimitem);
+			player_inventory_slot.keepOnDeath = true;
+			player_inventory_slot.lockMode = true;
+		}
+		 
+		//check if player has permits, if not set to 1. first permit is free.
+		if (world.getDynamicProperty(DP_PERMIT + player.id.toString()) == null)
+		{
+			world.setDynamicProperty(DP_PERMIT + player.id.toString(), 1);  
+		}
+	}
+}
+	
+
+
+export class ResourceList {
+	#TYPEID;    			//minecraft block/item typeid e.g. "mincraft:apples" or "wipo:teleport"
+	#AMOUNT;    			//the amount a items/blocks
+	#TRANSLATIONKEY;		//the item/block translationkey. this key is used to display the item/block name in messages translation via language files.
+
+	constructor(typeid, amount, tkey) {
+		this.#TYPEID = typeid;
+		this.#AMOUNT = amount;
+		this.#TRANSLATIONKEY = tkey;
+	}
+	
+	// GETTER
+	get typeId() { return this.#TYPEID; }
+	get amount() { return this.#AMOUNT; }
+	get translationKey() { return this.#TRANSLATIONKEY; }
 }

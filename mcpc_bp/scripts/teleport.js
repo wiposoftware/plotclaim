@@ -1,14 +1,16 @@
+//© 2025 - WIPOSOFTWARE - https://github.com/wiposoftware/plotclaim
+
 //import {world, system, BlockComponentPlayerInteractEvent, BlockComponentTickEvent, BlockComponentOnPlaceEvent } from "@minecraft/server";
 /* @type {import("@minecraft/server").BlockCustomComponent} */
 import { world, system } from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
-import { PlotSystem } from "./plotsystem.js";
+import { PlotSystem, ResourceList } from "./plotsystem.js";
 import { Vector3 } from "./vector3.js";
 
 const plotsystem = new PlotSystem;
 
 //resource needed to teleport
-const teleport_resource_list = [{typeId : "wipo:teletoken", amount: 1}];
+const teleport_resource_list = [new ResourceList("wipo:teletoken", 1, "item.wipo:teletoken")];
 
 function UI_teleport(event) {
 	const player = event.player;
@@ -18,7 +20,16 @@ function UI_teleport(event) {
 	if (!(teleportlist === undefined)) {
 		const form = new ModalFormData().title("teleport to another plot");
 		form.label("You can teleport to other teleports which are located on your own plots our friends plots.");
-		form.label("§nAttention§r, using the teleport will cost you:\n§l 1 teletoken§r\n\n");
+		form.label("§nAttention§r, using the teleport will cost you:§l" );
+		for (let resource_item of teleport_resource_list){
+			let color = "§c"; //red
+			if (plotsystem.player_has_resources(player, [resource_item], false) == true){
+				//green color
+				color = "§a"; 
+			}
+			form.label({"rawtext":[{text:"   §o- "},{translate : resource_item.translationKey},{text:" : " + color + resource_item.amount.toString() + "§r"} ]});
+		}
+		form.label("");
 		form.dropdown("Select your destination", teleportlist);
 		form.label("\n");
 				
@@ -28,7 +39,15 @@ function UI_teleport(event) {
 				//console.warn("form canceled");
 				return;
 			}else{
-				const response = r.formValues[2];
+				// all returned values/fields are null, only the selection box carries a real response as number. loop through all these values and find the number.
+				let response = -1; // -1 means nothing
+				for (let value of r.formValues){
+					if (typeof value === 'number')
+					{
+							response = value;
+					}
+				}
+				if (response == -1){return;}//could not find the selection, stange situation, exit funtion
 				if (!(teleportlist[response] === undefined)) {
 					// get the chosen plot from the dropdownlist
 					const plot =  teleportlist[response].substring(teleportlist[response].indexOf(" | ")+3, teleportlist[response].lastIndexOf(" | "));
@@ -48,7 +67,7 @@ function UI_teleport(event) {
 								player.playSound("mob.endermen.portal", {volume : 1.0, pitch : 1.0});
 							},10);
 						} else {
-							plotsystem.send_message( player, "You need at least 1 teletoken to use the teleport.");
+							plotsystem.send_message( player, "CAN NOT TELEPORT! You do not have the required resources to teleport.");
 						}
 					}
 				}
@@ -89,11 +108,11 @@ export class TelePort {
 				event.block.z == Math.floor(event.player.location.z) &&
 				event.block.y+1 == Math.floor(event.player.location.y)){
 				//ok player or friend is on the block, show the teleport GUI.	
-				if (plotsystem.player_has_resources(event.player, teleport_resource_list, false) == true){
+				//if (plotsystem.player_has_resources(event.player, teleport_resource_list, false) == true){
 					UI_teleport(event);
-				} else {
-					plotsystem.send_message( event.player, "You need at least 1 teletoken to use the teleport.");
-				}
+				//} else {
+				//	plotsystem.send_message( event.player, "You need at least 1 teletoken to use the teleport.");
+				//}
 			} else {
 				plotsystem.send_message( event.player, "Step on the teleport block to activate the teleportation.");
 			}

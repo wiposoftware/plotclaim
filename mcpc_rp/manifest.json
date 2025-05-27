@@ -1,13 +1,13 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Wipo's PLOTCLAIM Resource Pack",
+    "name": "Wipo's PLOTCLAIM Resource Pack v1.1",
     "description": "Claim a plot. You will be to owner of this plot and only you will be able to build on this plot.\nThis Minecraft Bedrock addon is created by WIPO. Visit this website for all information: https://github.com/wiposoftware/plotclaim",
     "uuid": "854d24c4-4db1-4af9-87cb-10327f773012",
     "version": [
       1,
-      0,
-      3
+      1,
+      0
     ],
     "min_engine_version": [
       1,
@@ -22,8 +22,8 @@
       "uuid": "516bba36-5418-44df-970d-393a14140ecf",
       "version": [
         1,
-        0,
-        3
+        1,
+        0
       ]
     }
   ],
@@ -32,8 +32,8 @@
       "uuid": "5c773689-413e-45fb-b179-561f8e010801",
       "version": [
         1,
-        0,
-        3
+        1,
+        0
       ]
     }
   ],
