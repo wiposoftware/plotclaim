@@ -40,6 +40,7 @@ function block_set(X, Y, Z, blocktype ) {
 
 export class PlotSystem {
 	
+	PLOTCLAIMVERSIONMESSAGE;
 	
 	player_has_resources(player, action_resource_list, pay) {
 		if (pay === undefined){ //if pay is not given, default it to false
@@ -98,6 +99,8 @@ export class PlotSystem {
 	
 	send_message (who, message) {
 		//this will send a message in the chat. "who" should be player or world. "message" should be a string.
+		if ((who === undefined) || (message === undefined)){return;}
+		
 		system.run(() => {
 				who.sendMessage(PC_MSG_PREFIX+message);
 		});
@@ -683,6 +686,9 @@ export class PlotSystem {
 		{
 			world.setDynamicProperty(DP_PERMIT + player.id.toString(), 1);  
 		}
+		
+		//send the welkom message
+		this.send_message(player,this.PLOTCLAIMVERSIONMESSAGE);
 	}
 }
 	

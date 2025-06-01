@@ -1,0 +1,21 @@
+{
+  "format_version": "1.20.20",
+  "sound_definitions": {
+    "wipo.worldborder": {
+      "category": "ambient",
+      "sounds": [
+        {
+          "name": "sounds/random/worldborder"
+        }
+      ]
+    },
+	"wipo.dangerzone": {
+      "category": "ambient",
+      "sounds": [
+			"sounds/random/dangerzone1",
+			"sounds/random/dangerzone2",
+			"sounds/random/dangerzone3"
+      ]
+    }
+  }
+}

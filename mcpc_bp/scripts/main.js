@@ -2,42 +2,79 @@
 
 // ct:/main.js
 
-import { world, system, BlockComponentRegistry} from "@minecraft/server";
+import { world, system} from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 import { TelePort } from "./teleport.js";
 import { PlotUI } from "./plotitem.js";
 import { PlotSystem } from "./plotsystem.js";
+import { WorldBorder } from "./worldborder.js";
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 //import { MolangVariableMap } from "@minecraft/server";
 
 const plotsystem = new PlotSystem;
 
+//system.run(() => {
+//		world.setDynamicProperty("WB_LIMIT", 100);
+//});
+//system.waitTicks(10);
+
+const worldborder = new WorldBorder;
+
+plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.2 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
+
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
-  world.sendMessage("Welcome to PlotClaim! v1.1 - By WIPO");
-  //world.sendMessage("https://github.com/wiposoftware/plotclaim");
-}, 400);
-
+  plotsystem.send_message(world,plotsystem.PLOTCLAIMVERSIONMESSAGE);
+}, 1200);
 
 //registering all events needed to run plotclaim
 system.beforeEvents.startup.subscribe((init) => {
+	//register custom block components/events for the teleport block.
 	console.info("registering teleport block components");
     init.blockComponentRegistry.registerCustomComponent( "wipo:teleport_components", new TelePort());
+	
+	//register custom item components/events for the plotclaim item.
 	console.info("registering claimplot item components");
 	init.itemComponentRegistry.registerCustomComponent("wipo:plotitem__components", new PlotUI());
+
+	//register custom game commands for setting worldborder.
+	const mycommand1 = {
+		name: "plotclaim:setworldborder",
+		description: "set the worldborder (limit)",
+		permissionLevel: 2, //2 = admin
+		mandatoryParameters: [{ type: 1, name: "limit" }], //0=bool,1=int,2=float,3=string
+		optionalParameters: [{type: 1, name: "netherratio"}] //9=enum used with registerenum
+	};
+	init.customCommandRegistry.registerCommand(mycommand1, worldborder.ChangeWorldBorder);
+	const mycommand2 = {
+		name: "plotclaim:disableworldborder",
+		description: "disable the worldborder (limit)",
+		permissionLevel: 2, //2 = admin
+	};
+	init.customCommandRegistry.registerCommand(mycommand2, worldborder.DisableWorldBorder);
+	
 });
 
 world.beforeEvents.explosion.subscribe((event) => {
-	plotsystem.EventExplosion(event);
+	worldborder.EventExplosion(event);
+	if (event.cancel == false) {
+		plotsystem.EventExplosion(event);
+	}
 });
 
 world.beforeEvents.playerPlaceBlock.subscribe((event) => {
-	plotsystem.EventPlaceBlock(event);
+	worldborder.EventPlaceBlock(event);
+	if (event.cancel == false) {
+		plotsystem.EventPlaceBlock(event);
+	}
 });
 
 world.beforeEvents.playerBreakBlock.subscribe((event) => {
-	plotsystem.EventBreakBlock(event);
+	worldborder.EventBreakBlock(event);
+	if (event.cancel == false) {
+		plotsystem.EventBreakBlock(event);
+	}
 });
 
 world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
@@ -52,6 +89,7 @@ world.afterEvents.playerSpawn.subscribe( event => {
 	plotsystem.EventSpawn(event);
 });
 
+worldborder.start();
 
 
 /*system.run(() => {

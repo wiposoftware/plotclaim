@@ -11,6 +11,7 @@ const plot_resource_list = [new ResourceList("minecraft:dirt",8,"tile.dirt.name"
 //const permit_resource_list = [new ResourceList("minecraft:copper_ingot",20,"item.copper_ingot.name"), new ResourceList("minecraft:stone",10,"tile.stone.stone.name")];
 const permit_resource_list = [new ResourceList("minecraft:redstone",20,"item.redstone.name"), new ResourceList("minecraft:paper",1,"item.paper.name")];
 
+let plotitem_use_zone = -1 ; // this variable will hold the zone (range of blocks) were we can use the plotitem. this works with worldborder. -1 means disabled, can use everywhere.
 
 function UI_MainMenu(player) { //, log: (message: string, status?: number) => void, targetLocation: DimensionLocation) {
 	if (!(player === undefined)) {
@@ -551,14 +552,39 @@ function UI_DeletePlotFriend(player) { //, log: (message: string, status?: numbe
 }
 
 export class PlotUI {
+	constructor () {
+		//when start this we run the underneath code every 3 seconds to get updates on the worldborder
+		system.runInterval(() => {
+			const dummy = world.getDynamicProperty("WB_LIMIT");
+			if (dummy === undefined) {
+				plotitem_use_zone=-1
+			} else {
+				plotitem_use_zone=dummy-32;
+			}
+		}, 60);
+	}
+	
 	
 	onUse(event) {
 		//event.itemStack // The item stack when the item was used.
 		//event.source // The player who used the item.
 		if (event.itemStack.typeId === "wipo:plotclaim" && (!(event.source === undefined))) {
-			system.run(() => {
-				UI_MainMenu(event.source);
-			});
+			if (plotitem_use_zone > 0) {
+				//plotitem has a limit use zone, check if event was triggered within this zone
+				if ((event.source.location.x < plotitem_use_zone) && (event.source.location.x > -plotitem_use_zone) && (event.source.location.z < plotitem_use_zone) && (event.source.location.z > -plotitem_use_zone)){
+					// plotitem can be used everywhere
+					system.run(() => {
+						UI_MainMenu(event.source);
+					});		
+				} else {
+					plotsystem.send_message(event.source,"Cannot manage plots close to the world border.");
+				}
+			} else {
+				// plotitem can be used everywhere
+				system.run(() => {
+					UI_MainMenu(event.source);
+				});
+			}
 		};
 	}
 	
