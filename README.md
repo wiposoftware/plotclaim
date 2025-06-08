@@ -5,7 +5,7 @@ featuring:
 - teleport system
 - worldborder system
 
-*If you would like to play this addon without installing it we are hosting a Minecraft Bedrock server with Plotclaim.*
+*If you would like to play this addon without installing it, we are hosting a Minecraft Bedrock server with Plotclaim.*
 - *server address:* **185.228.81.162**
 - *server port:* **19132**
 
