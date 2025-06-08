@@ -5,6 +5,10 @@ featuring:
 - teleport system
 - worldborder system
 
+*If you would like to play this addon without installing it we are hosting a Minecraft Bedrock server with Plotclaim.*
+- *server address:* **185.228.81.162**
+- *server port:* **19132**
+
 ## Installation
 - Download the latest version of the "plotclaim.mcaddon" file. ([releases](https://github.com/wiposoftware/plotclaim/releases))
 - Launch your Minecraft Bedrock game.
