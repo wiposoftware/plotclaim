@@ -439,9 +439,15 @@ export class WorldBorder {
 		world.setDynamicProperty(DP_LIMIT, WORLDLIMIT);
 		world.setDynamicProperty(DP_NETHERRATIO, NETHERRATIO);
 		
-		event.sourceEntity.sendMessage("§c§o worldborder has been§r §a§lENABLED§r");
-		event.sourceEntity.sendMessage("§c§o worldborder for overworld is set to§r §6§l" + WORLDLIMIT.toString() + "§r");
-		event.sourceEntity.sendMessage("§c§o worldborder for nether is set to§r §6§l" + NETHERLIMIT.toString()) + "§r";	
+		if (event.sourceEntity.typeId == "minecraft:player") {
+			event.sourceEntity.sendMessage("§c§o worldborder has been§r §a§lENABLED§r");
+			event.sourceEntity.sendMessage("§c§o worldborder for overworld is set to§r §6§l" + WORLDLIMIT.toString() + "§r");
+			event.sourceEntity.sendMessage("§c§o worldborder for nether is set to§r §6§l" + NETHERLIMIT.toString()) + "§r";
+		} else {
+			console.warn("worldborder has been enable");
+			console.warn("worldborder for overworld is set to " + WORLDLIMIT.toString());
+			console.warn("worldborder for nether is set to " + NETHERLIMIT.toString());
+		}
 	}
 	
 	DisableWorldBorder(event) {
@@ -452,8 +458,12 @@ export class WorldBorder {
 		world.setDynamicProperty(DP_LIMIT, null);
 		world.setDynamicProperty(DP_NETHERRATIO, null);	
 		//
-		event.sourceEntity.sendMessage("§c§oWorldborder has been§r §4§lDISABLED§r");
-		console.warn("worldborderlimits are disabled");
+		
+		if (event.sourceEntity.typeId == "minecraft:player") {
+			event.sourceEntity.sendMessage("§c§oWorldborder has been§r §4§lDISABLED§r");
+		} else {
+			console.warn("worldborderlimits are disabled");
+		}
 	}
 	
 	

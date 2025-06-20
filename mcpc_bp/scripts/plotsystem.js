@@ -497,8 +497,8 @@ export class PlotSystem {
 									const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
 									if (player_inventory && player_inventory.container) {
 										player_inventory.container.addItem(privatechest);
-										this.sendMessage(player,"Check your inventory you have got a little present.");
 										player.setDynamicProperty("hasreceivedgift", 1);
+										this.sendMessage(player,"Check your inventory you have got a little present.");
 									}
 								}
 							});

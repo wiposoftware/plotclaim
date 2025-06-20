@@ -2,7 +2,7 @@
 
 // ct:/main.js
 
-import { world, system} from "@minecraft/server";
+import { world, system } from "@minecraft/server";
 import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 import { TelePort } from "./teleport.js";
 import { PlotUI } from "./plotitem.js";
@@ -20,7 +20,7 @@ const plotsystem = new PlotSystem;
 
 const worldborder = new WorldBorder;
 
-plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.2 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
+plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.3 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
 
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
@@ -43,8 +43,8 @@ system.beforeEvents.startup.subscribe((init) => {
 		name: "plotclaim:setworldborder",
 		description: "set the worldborder (limit)",
 		permissionLevel: 2, //2 = admin
-		mandatoryParameters: [{ type: 1, name: "limit" }], //0=bool,1=int,2=float,3=string
-		optionalParameters: [{type: 1, name: "netherratio"}] //9=enum used with registerenum
+		mandatoryParameters: [{ type: "Integer", name: "limit" }], //0=bool,1=int,2=float,3=string
+		optionalParameters: [{type: "Integer", name: "netherratio"}] //9=enum used with registerenum
 	};
 	init.customCommandRegistry.registerCommand(mycommand1, worldborder.ChangeWorldBorder);
 	const mycommand2 = {
