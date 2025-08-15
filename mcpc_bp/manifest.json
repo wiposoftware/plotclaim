@@ -1,18 +1,18 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Wipo's PLOTCLAIM Behavior Pack v1.3",
+    "name": "Wipo's PLOTCLAIM Behavior Pack v1.4",
     "description": "Claim a plot. You will be to owner of this plot and only you will be able to build on this plot.\nThis Minecraft Bedrock addon is created by WIPO. Visit this website for all information: https://github.com/wiposoftware/plotclaim",
     "uuid": "5c773689-413e-45fb-b179-561f8e010801",
     "version": [
       1,
-      3,
+      4,
       0
     ],
     "min_engine_version": [
       1,
       21,
-      90
+      100
     ]
   },
   "modules": [
@@ -20,7 +20,7 @@
       "description": "Behavior",
       "version": [
         1,
-        3,
+        4,
         0
       ],
       "uuid": "2fb8696d-9638-4d5e-ad90-dd0daad76b05",
@@ -33,7 +33,7 @@
       "uuid": "edb3a56c-3739-4daa-9afb-b0d34f95b073",
       "version": [
         1,
-        3,
+        4,
         0
       ],
       "entry": "scripts/main.js"
@@ -44,13 +44,13 @@
       "uuid": "854d24c4-4db1-4af9-87cb-10327f773012",
       "version": [
         1,
-        3,
+        4,
         0
       ]
     },
     {
       "module_name": "@minecraft/server",
-      "version": "2.1.0-beta"
+      "version": "2.2.0-beta"
     },
 	{
 	  "module_name": "@minecraft/server-ui",
