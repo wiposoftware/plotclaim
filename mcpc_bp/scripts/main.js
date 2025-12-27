@@ -20,7 +20,7 @@ const plotsystem = new PlotSystem;
 
 const worldborder = new WorldBorder;
 
-plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.4.1 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
+plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.4.2 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
 
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
