@@ -385,8 +385,10 @@ export class WorldBorder {
 		//can put there nametags.
 		if (WORLDLIMIT > 0) { // if worldborder is enabled
 			const block = event.source;
-			if (outside_worldlimit(block.location.x, block.dimension.id) || outside_worldlimit(block.location.z, block.dimension.id)) {
-				event.cancel = true;
+			if (block.location) {
+				if (outside_worldlimit(block.location.x, block.dimension.id) || outside_worldlimit(block.location.z, block.dimension.id)) {
+					event.cancel = true;
+				}
 			}
 		}
 	}
