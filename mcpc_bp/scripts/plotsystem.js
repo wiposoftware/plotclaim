@@ -498,7 +498,7 @@ export class PlotSystem {
 									if (player_inventory && player_inventory.container) {
 										player_inventory.container.addItem(privatechest);
 										player.setDynamicProperty("hasreceivedgift", 1);
-										this.sendMessage(player,"Check your inventory you have got a little present.");
+										this.send_message(player,"Check your inventory you have got a little present.");
 									}
 								}
 							});
