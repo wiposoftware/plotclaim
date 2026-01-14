@@ -27,7 +27,6 @@ const explosion_protection = true; //when true a plot is protected against explo
 const worldspawn_protection = true; // when true players can not claim a plot at worldspawn. this is used together with SPAWN_PROTECTION.
 
 
-
 function block_set(X, Y, Z, blocktype ) {
     const overworld = world.getDimension("overworld"); // gets the dimension of type overworld.
 	
@@ -268,6 +267,18 @@ export class PlotSystem {
 		// if we could not retreive the username we end up here, we send back noname
 		return "(noname)";
 	}
+
+	user_count() {
+		let usercounter = 0; 
+		// loop throuh all dynamic properties and count how many users are registered on this server
+		let world_dynamic_property_list = world.getDynamicPropertyIds();
+		for (let world_dynamic_property_name of world_dynamic_property_list) {
+			if (world_dynamic_property_name.indexOf(DP_USERNAME) >= 0) {
+				usercounter = usercounter+1;
+			}
+		}	
+		return usercounter;
+	}
 	
 	is_owner (playerid, plot) {
 		// this function will check if the provided player is the owner of the provided plot
@@ -462,7 +473,9 @@ export class PlotSystem {
 		return neighbour;
 	}
 	
-	claim_plot(player, plot, myplotname){
+	claim_plot(player, plot, myplotname, skyworldstartplot){
+		skyworldstartplot = skyworldstartplot || false;
+		
 		//before we claim the plot we do some checks, best practice is to perform the same checks in the UI and inform the player about checks that might fail in the UI.
 		if(player.dimension.id == "minecraft:overworld") {
 			if (this.IsPlayerToCloseToWorldSpawn(player) == false){
@@ -482,26 +495,27 @@ export class PlotSystem {
 							
 							//mark the plot on the minecraftworld with 4 fences.
 							const plotlimits = this.plot_to_plotvolume(plot);
-							//system.runJob(block_fillarea(plotlimits.Xmin, plotlimits.Xmax, plotlimits.Zmin, plotlimits.Zmax,plyy-1,plyy-1, "minecraft:cobblestone"));
-							system.run(() => {							
-								// place a fence on every corner of the plot
-								block_set(plotlimits.from.x,player.location.y,plotlimits.from.z, "oak_fence");
-								block_set(plotlimits.from.x,player.location.y,plotlimits.to.z, "oak_fence");
-								block_set(plotlimits.to.x,player.location.y,plotlimits.from.z, "oak_fence");
-								block_set(plotlimits.to.x,player.location.y,plotlimits.to.z, "oak_fence");
-								
-								//give the player a gift the first time he claims a plot
-								//const privatechest = new ItemStack("minecraft:ender_chest", 1);
-								if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
-									const privatechest = new ItemStack("minecraft:chest", 1);
-									const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
-									if (player_inventory && player_inventory.container) {
-										player_inventory.container.addItem(privatechest);
-										player.setDynamicProperty("hasreceivedgift", 1);
-										this.send_message(player,"Check your inventory you have got a little present.");
+							if (skyworldstartplot == false) {
+								system.run(() => {							
+									// place a fence on every corner of the plot
+									block_set(plotlimits.from.x,player.location.y,plotlimits.from.z, "oak_fence");
+									block_set(plotlimits.from.x,player.location.y,plotlimits.to.z, "oak_fence");
+									block_set(plotlimits.to.x,player.location.y,plotlimits.from.z, "oak_fence");
+									block_set(plotlimits.to.x,player.location.y,plotlimits.to.z, "oak_fence");
+									
+									//give the player a gift the first time he claims a plot
+									//const privatechest = new ItemStack("minecraft:ender_chest", 1);
+									if  (!(player.getDynamicProperty("hasreceivedgift")==1)){
+										const privatechest = new ItemStack("minecraft:chest", 1);
+										const player_inventory = player.getComponent(EntityComponentTypes.Inventory);
+										if (player_inventory && player_inventory.container) {
+											player_inventory.container.addItem(privatechest);
+											player.setDynamicProperty("hasreceivedgift", 1);
+											this.sendMessage(player,"Check your inventory you have got a little present.");
+										}
 									}
-								}
-							});
+								});
+							}
 							// we have done everyting to claim this plot, return success
 							return true;
 						} else {

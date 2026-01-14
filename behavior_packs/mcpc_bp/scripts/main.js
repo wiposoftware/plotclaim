@@ -8,25 +8,22 @@ import { TelePort } from "./teleport.js";
 import { PlotUI } from "./plotitem.js";
 import { PlotSystem } from "./plotsystem.js";
 import { WorldBorder } from "./worldborder.js";
+import { SkyWorld } from "./skyworld.js";
+
 //import { MinecraftItemTypes } from "@minecraft/vanilla-data";
 //import { MolangVariableMap } from "@minecraft/server";
 
 const plotsystem = new PlotSystem;
-
-//system.run(() => {
-//		world.setDynamicProperty("WB_LIMIT", 100);
-//});
-//system.waitTicks(10);
-
+const skyworld = new SkyWorld;
 const worldborder = new WorldBorder;
 
-plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v1.4.2 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
+plotsystem.PLOTCLAIMVERSIONMESSAGE="Welcome to §lPlotClaim§r! v2.0.0 - By WIPO"+"\n"+"§ohttps://github.com/wiposoftware/plotclaim§r"
 
 // Create & run an interval that is called every Minecraft tick
 system.runInterval(() => {
   // Spams the chat with "Hello World" with world.sendMessage function from the API
   plotsystem.send_message(world,plotsystem.PLOTCLAIMVERSIONMESSAGE);
-}, 1200);
+}, 2400);
 
 //registering all events needed to run plotclaim
 system.beforeEvents.startup.subscribe((init) => {
@@ -43,8 +40,8 @@ system.beforeEvents.startup.subscribe((init) => {
 		name: "plotclaim:setworldborder",
 		description: "set the worldborder (limit)",
 		permissionLevel: 2, //2 = admin
-		mandatoryParameters: [{ type: "Integer", name: "limit" }], //0=bool,1=int,2=float,3=string
-		optionalParameters: [{type: "Integer", name: "netherratio"}] //9=enum used with registerenum
+		mandatoryParameters: [{ type: "Integer", name: "limit" }], 
+		optionalParameters: [{type: "Integer", name: "netherratio"}] 
 	};
 	init.customCommandRegistry.registerCommand(mycommand1, worldborder.ChangeWorldBorder);
 	const mycommand2 = {
@@ -53,6 +50,15 @@ system.beforeEvents.startup.subscribe((init) => {
 		permissionLevel: 2, //2 = admin
 	};
 	init.customCommandRegistry.registerCommand(mycommand2, worldborder.DisableWorldBorder);
+	
+	//register custom game commands for skyworld gameplay
+	const mycommand3 = {
+		name: "plotclaim:setskyworld",
+		description: "enable or disable the plotclaim skyworld gameplay mode",
+		permissionLevel: 2, //2 = admin
+		mandatoryParameters: [{ type: "Boolean", name: "value" }] 
+	};
+	init.customCommandRegistry.registerCommand(mycommand3, skyworld.SetSkeyWorldMode);
 	
 });
 
@@ -87,7 +93,13 @@ world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {
 
 world.afterEvents.playerSpawn.subscribe( event => {
 	plotsystem.EventSpawn(event);
+	skyworld.EventSpawn(event);
 });
+
+world.afterEvents.playerDimensionChange.subscribe(event => {
+    skyworld.EventDimensionChange(event);
+});
+
 
 worldborder.start();
 
@@ -104,23 +116,6 @@ worldborder.start();
 //world.getAllPlayers().forEach(function (player) {
 //  console.warn(player.name);
 //});
-
-
-/*
-function* block_fillarea(startX, endX, startZ, endZ, startY, endY, blocktype ) {
-    const overworld = world.getDimension("overworld"); // gets the dimension of type overworld.
-    for (let x = startX; x <= endX; x++) {
-		for (let y = startY; y <= endY; y++) {
-            for (let z = startZ; z <= endZ; z++) {		
-                const block = overworld.getBlock({ x: x, y: y, z: z }); // get the block at the current loop coordinates.
-                if (block) block.setType(blocktype); // if the block is loaded, set it to cobblestone.
-                // yield back to job coordinator after every block is placed
-                yield;
-            }
-		}
-    }
-}
-*/
 
 //function listdynamicprop(player){
 //	player.sendMessage(world.getDynamicPropertyIds());
@@ -159,40 +154,6 @@ function* block_fillarea(startX, endX, startZ, endZ, startY, endY, blocktype ) {
 	}
   }
 });*/
-
-/*
-function generate_plotname(player){
-	//generate a unique plotname for a spefic player.
-	//plotnames begin with "MY PLOT " followed by a number. this function will check the name is unique
-	
-	let myplotcounter=0;
-	let myplotname= "MY PLOT ";
-	let foundhit=true;
-	
-	while (foundhit==true) {
-		// as long as we find a plot with the same name we keep looping and searching until we found somehting free
-		foundhit = false;
-		myplotcounter = myplotcounter+1;
-		let world_dynamic_property_list = world.getDynamicPropertyIds();
-		for (let world_dynamic_property_id in world_dynamic_property_list) {
-			let world_dynamic_property_name = world_dynamic_property_list[world_dynamic_property_id];
-			if (world_dynamic_property_name.indexOf("plot_") >= 0) {
-				let plot = world_dynamic_property_name;
-				let plotowner = world.getDynamicProperty(plot);
-				if (plotowner == player.id){
-					// get the X/Z values from the plotname
-					const plotlocation = plot.substring(plot.indexOf("_")+1);
-					const plotfriendlyname = world.getDynamicProperty("plotname_" + plotlocation);
-					if (plotfriendlyname == myplotname+myplotcounter.toString()) {
-						foundhit=true;
-					}
-				}
-			}
-		}
-	}
-	myplotname=myplotname+myplotcounter.toString();
-	return myplotname;
-}*/
 
 
 
