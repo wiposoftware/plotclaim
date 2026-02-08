@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.0",
+  "minecraft:structure_template_feature": {
+    "description": {
+      "identifier": "minecraft:sandisland5"
+    },
+    "structure_name": "mystructure:sandisland5",
+    "adjustment_radius": 0,
+    "facing_direction": "random",
+    "constraints": {
+      "grounded": {}
+    }
+  }
+}

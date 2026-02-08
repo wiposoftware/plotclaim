@@ -3,7 +3,7 @@
 // ct:/main.js
 
 import { world, system } from "@minecraft/server";
-import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
+//import { ActionFormData, ActionFormResponse, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 import { TelePort } from "./teleport.js";
 import { PlotUI } from "./plotitem.js";
 import { PlotSystem } from "./plotsystem.js";
@@ -58,7 +58,7 @@ system.beforeEvents.startup.subscribe((init) => {
 		permissionLevel: 2, //2 = admin
 		mandatoryParameters: [{ type: "Boolean", name: "value" }] 
 	};
-	init.customCommandRegistry.registerCommand(mycommand3, skyworld.SetSkeyWorldMode);
+	init.customCommandRegistry.registerCommand(mycommand3, skyworld.SetSkyWorldMode);
 	
 });
 
@@ -84,7 +84,9 @@ world.beforeEvents.playerBreakBlock.subscribe((event) => {
 });
 
 world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
-	plotsystem.EventInteract(event);
+	if (skyworld.EventInteract(event) == false) {
+		plotsystem.EventInteract(event);
+	}
 });
 
 world.afterEvents.playerJoin.subscribe(({playerId, playerName})=> {

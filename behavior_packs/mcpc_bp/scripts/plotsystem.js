@@ -377,6 +377,50 @@ export class PlotSystem {
 			if (!(plotstring === undefined)){
 				world.setDynamicProperty(DP_PLOT + plotstring, null);   // delete plot
 				world.setDynamicProperty(DP_PLOTNAME + plotstring, null); //delete plot name
+				
+				// check if skyworld mode is enabled and if so, cleanup the entire plot
+				const skyworldmode = world.getDynamicProperty("SW_MODE"); //
+				if (skyworldmode === undefined){
+					//nothing to do
+				} else {
+					if (skyworldmode == true){
+						system.run(() => {
+							const overworld = world.getDimension("overworld");
+							const plotvolume = this.plot_to_plotvolume(plot);
+							const tickingareaname = "plot_cleanup_" + plotstring;
+							const tickingarea = {
+								dimension: overworld, 
+								from: {x : plotvolume.from.x, y: -64, z: plotvolume.from.z},
+								to: {x : plotvolume.to.x, y: 319, z: plotvolume.to.z}
+							};
+							const filloptions = {
+							//	 ignoreChunkBoundErrors: true 
+							};
+							world.tickingAreaManager.createTickingArea(tickingareaname, tickingarea).then(
+								function(result) { //as soon as the the tickingerea is loaded
+									let fillfrom = new Vector3(plotvolume.from.x , -64, plotvolume.from.z);
+									let fillto = new Vector3(plotvolume.to.x, 63, plotvolume.to.z);			
+									let myarea = new BlockVolume(fillfrom, fillto);
+									overworld.fillBlocks(myarea, "minecraft:air", filloptions);
+									fillfrom = new Vector3(plotvolume.from.x , 64, plotvolume.from.z);
+									fillto = new Vector3(plotvolume.to.x, 191, plotvolume.to.z);			
+									myarea = new BlockVolume(fillfrom, fillto);
+									overworld.fillBlocks(myarea, "minecraft:air", filloptions);
+									fillfrom = new Vector3(plotvolume.from.x , 192, plotvolume.from.z);
+									fillto = new Vector3(plotvolume.to.x, 319, plotvolume.to.z);			
+									myarea = new BlockVolume(fillfrom, fillto);
+									overworld.fillBlocks(myarea, "minecraft:air", filloptions);	
+									try {
+										world.tickingAreaManager.removeTickingArea(tickingareaname);
+									} catch (error) {
+										console.warn("Could not remove plot ticking area for deletion: " + tickingareaname + " -----> " + error);
+									}
+								}
+							);					
+						});
+					} 
+				}
+
 				return true;
 			}
 		}
@@ -475,10 +519,10 @@ export class PlotSystem {
 	
 	claim_plot(player, plot, myplotname, skyworldstartplot){
 		skyworldstartplot = skyworldstartplot || false;
-		
+
 		//before we claim the plot we do some checks, best practice is to perform the same checks in the UI and inform the player about checks that might fail in the UI.
-		if(player.dimension.id == "minecraft:overworld") {
-			if (this.IsPlayerToCloseToWorldSpawn(player) == false){
+		if(player.dimension.id == "minecraft:overworld") { // only allow claiming plots in overworld
+			if (this.IsPlayerToCloseToWorldSpawn(player) == false || skyworldstartplot == true) { //check if player is not to close to worldspawn
 				// ok player wants to claim a plot, check if this is possible then claim it.
 				if (this.plot_count(player) < this.get_maxclaims(player)) { // check if player is not claiming to much plots²
 					if (this.get_plot_owner(plot) === undefined) { //check if this plot is already claimed

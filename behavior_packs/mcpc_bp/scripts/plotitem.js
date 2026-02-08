@@ -214,11 +214,21 @@ function UI_ConfirmDeletePlot(player, plotid){
 					plotteleport ="no";
 				}
 				// we are ready to show all info
-				const message = "Do you realy want to delete this plot: \n\n §n§l" + plotfriendlyname + 
+				let message = "Do you realy want to delete this plot: \n\n §n§l" + plotfriendlyname + 
 								"\n §r" + plotid + 
 								"\n -> from("  + plot_coordinates.from.x + "," + plot_coordinates.from.z + 
 								")\n -> to(" + plot_coordinates.to.x + "," + plot_coordinates.to.z + ")" +
 								"\n -> teleport : " + plotteleport + "\n\n";
+				
+				// check if skyworld mode is enabled and if so, warn the player that all buildings will be lost forever			SKYWORLDMODE = world.getDynamicProperty(DP_SKYWORLDMODE); //
+				const skyworldmode = world.getDynamicProperty("SW_MODE"); //
+				if (skyworldmode === undefined){
+					//nothing to do
+				} else {
+					if (skyworldmode == true){
+						message = "§c§lWARNING:§r §cSkyworld is enabled!\nDeleting a plot will also delete all buildings, blocks, items, ... on this plot permanently!§r\n\n" + message;
+					}
+				} 
 				
 				let form = new MessageFormData();
 				form.title("Delete a plot");
