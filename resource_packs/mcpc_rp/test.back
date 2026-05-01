@@ -1,4 +1,4 @@
-{
+/*{
   "format_version": "1.21.40",
   "wipo:teleport": {
     "textures": {
@@ -14,4 +14,4 @@
     "ambient_occlusion_exponent": 1,
     "sound": "stone"
   }
-}
+}*/

@@ -1,7 +1,7 @@
 //© 2026 - WIPOSOFTWARE - https://github.com/wiposoftware/plotclaim
 
 import { Vector3 } from "./vector3.js";
-import { world, system, TickingAreaManager, BlockVolume, BlockVolumeBase} from "@minecraft/server";
+import { world, system, BlockVolume} from "@minecraft/server"; //, BlockVolumeBase
 import { PlotSystem } from "./plotsystem.js";
 
 const plotsystem = new PlotSystem;
@@ -9,7 +9,7 @@ const skyworld_fake_user_id = "-1"; //fake userid for worldspawn plot claims
 const skyworld_fake_user_name = "PlotClaim-SkyWorld"; //fake username for worldspawn plot claims
 const skyworld_max_plot_distance = 100000; //maximum distance from world center where plots can be claimed at initial spawn
 const skyworld_worldcenter_tickingarea_name = "SKYWORLD_WORLDSPAWN";
-const structurelist = [ "skyworld",
+const structurelist = [ "skyworld", "endisland1",
 						"coalisland1","coalisland2","coalisland3","coalisland4",
 						"ironisland1","ironisland2","ironisland3","ironisland4",
 						"iceisland1", "iceisland2", "iceisland3", "iceisland4",
@@ -119,10 +119,27 @@ function generate_big_island(island_location) {
 	system.run(() => {
 		world.structureManager.place("skyworld",
 			overworld,
-			{x: x-16, y: y-64, z: z-16});
+			{x: x-16, y: y-64, z: z-16},
+			{rotation: "None"});
 	});
-	
+
 }
+
+function generate_end_island(island_location) {
+	// Try StructureManager API first (preferred). If not available or fails.
+	const overworld = world.getDimension("overworld");
+	const x = island_location.x;
+	const y = island_location.y;
+	const z = island_location.z;
+
+	system.run(() => {
+		world.structureManager.place("endisland1",
+			overworld,
+			{x: x-16, y: y, z: z-16},
+			{rotation: "None"});
+	});
+}
+
 
 function cleanup_plot(plot){
 	
@@ -151,7 +168,7 @@ function cleanup_plot(plot){
 function generate_random_islands(){
 	//generate random islands in the sky above the plots, to make it more fun to fly around and explore
 	const overworld = world.getDimension("overworld");	
-	system.run(() => {	
+	system.runTimeout(() => {	
 		//generate 20 small ice islands at height 224-300
 		for (let i=0; i<20; i++){
 			let rotation="";
@@ -195,6 +212,7 @@ function generate_random_islands(){
 
 		//generate 4 random big iceislands for every quadrant 1, at height 224-300
 		for (let i=0; i<4; i++){
+			
 			let randomislandtype = Math.floor(Math.random() * 3) + 2;
 			let rotation="";
 			switch (Math.floor(Math.random() * 4)) {
@@ -271,7 +289,9 @@ function generate_random_islands(){
 				world.tickingAreaManager.removeTickingArea(tickingareaname); //remove ticking area again, we only needed it to load the chunks for structure placement
 			});	
 		}
+	}, 60);
 
+	system.runTimeout(() => {
 		//generate 8 random big sandislands for every quadrant 2, at height 144-192
 		for (let i=0; i<8; i++){
 			let randomislandtype = Math.floor(Math.random() * 6) + 2;
@@ -314,54 +334,53 @@ function generate_random_islands(){
 				world.tickingAreaManager.removeTickingArea(tickingareaname); //remove ticking area again, we only needed it to load the chunks for structure placement
 			});	
 		}
-	});
+	}, 80);
 
 	//to generate a lot of additinal small dirt islands we execute the code with a delay
 	//to avoid max ticking area limits and to spread out the chunk generation and structure placement over time
 	system.runTimeout(() => {
-		//generate 120 small dirtislands at height 48-112
-		for (let i=0; i<120; i++){
-			let randomislandtype = Math.floor(Math.random() * 12) + 1;
-			let rotation="";
-			switch (Math.floor(Math.random() * 4)) {
-				case 0:	rotation = "None"; break;
-				case 1:	rotation = "Rotate180"; break;
-				case 2:	rotation = "Rotate270"; break;
-				case 3:	rotation = "Rotate90"; break;
-			}
-			//random vector x and z and y between -5000 and 5000 
-			let randomx = Math.floor(Math.random() * 10000) -5000;
-			//make sure randomx is not between -512 and 512, to avoid generating islands too close to world center
-			if (randomx > -512 && randomx < 512){
-				randomx = randomx + (randomx < 0 ? -512 : 512);
-			}
-			let randomz = Math.floor(Math.random() * 10000) -5000;
-			//make sure randomz is not between -512 and 512, to avoid generating islands too close to world center
-			if (randomz > -512 && randomz < 512){
-				randomz = randomz + (randomz < 0 ? -512 : 512);
-			}
-			let randomy = Math.floor(Math.random() * (112 - 48 + 1)) + 48;
-			let tickingarea = {
-				dimension: overworld, 
-				from: {x : randomx, y: randomy, z: randomz},
-				to: {x : randomx+7, y: randomy+5, z: randomz+7}
-			};
-			let tickingareaname = "SMALLDIRTISLAND_"+i.toString();
+			//generate 120 small dirtislands at height 48-112
+			for (let i=0; i<120; i++){
+				let randomislandtype = Math.floor(Math.random() * 12) + 1;
+				let rotation="";
+				switch (Math.floor(Math.random() * 4)) {
+					case 0:	rotation = "None"; break;
+					case 1:	rotation = "Rotate180"; break;
+					case 2:	rotation = "Rotate270"; break;
+					case 3:	rotation = "Rotate90"; break;
+				}
+				//random vector x and z and y between -5000 and 5000 
+				let randomx = Math.floor(Math.random() * 10000) -5000;
+				//make sure randomx is not between -512 and 512, to avoid generating islands too close to world center
+				if (randomx > -512 && randomx < 512){
+					randomx = randomx + (randomx < 0 ? -512 : 512);
+				}
+				let randomz = Math.floor(Math.random() * 10000) -5000;
+				//make sure randomz is not between -512 and 512, to avoid generating islands too close to world center
+				if (randomz > -512 && randomz < 512){
+					randomz = randomz + (randomz < 0 ? -512 : 512);
+				}
+				let randomy = Math.floor(Math.random() * (112 - 48 + 1)) + 48;
+				let tickingarea = {
+					dimension: overworld, 
+					from: {x : randomx, y: randomy, z: randomz},
+					to: {x : randomx+7, y: randomy+5, z: randomz+7}
+				};
+				let tickingareaname = "SMALLDIRTISLAND_"+i.toString();
 
-			world.tickingAreaManager.createTickingArea(tickingareaname, tickingarea).then(
-			function(result) { //as soon as the the tickingerea is loaded
-				console.info("generating small dirt island at x:" + randomx + " y:" + randomy + " z:" + randomz + " rotation: " + rotation + " type: " + randomislandtype);
-				world.structureManager.place("sandisland" + randomislandtype.toString(),
-				overworld,{ 
-					x: randomx, 
-					y: randomy, 
-					z: randomz
-				}, {rotation: rotation});
-				world.tickingAreaManager.removeTickingArea(tickingareaname); //remove ticking area again, we only needed it to load the chunks for structure placement
-			});	
-		}
-
-	},10);
+				world.tickingAreaManager.createTickingArea(tickingareaname, tickingarea).then(
+				function(result) { //as soon as the the tickingerea is loaded
+					console.info("generating small dirt island at x:" + randomx + " y:" + randomy + " z:" + randomz + " rotation: " + rotation + " type: " + randomislandtype);
+					world.structureManager.place("dirtisland" + randomislandtype.toString(),
+					overworld,{ 
+						x: randomx, 
+						y: randomy, 
+						z: randomz
+					}, {rotation: rotation});
+					world.tickingAreaManager.removeTickingArea(tickingareaname); //remove ticking area again, we only needed it to load the chunks for structure placement
+				});	
+			}
+	},120);
 	
 }
 
@@ -630,11 +649,15 @@ export class SkyWorld {
 						from: {x : -16, y: -64, z: -16},
 						to: {x : 15, y: 319, z: 15}
 					};
+
 					world.tickingAreaManager.createTickingArea(skyworld_worldcenter_tickingarea_name, tickingarea).then(
-						function(result) { //as soon as the the tickingerea is loaded
-							console.info("Skyworld worldspawn chunks added to ticking manager: " + result.chunkCount + "   loaded: " + result.isFullyLoaded );
+						(ticking_area_result) => { //as soon as the the tickingerea is loaded
+							if (ticking_area_result) {
+								console.info("Skyworld worldspawn chunks added to ticking manager: " + ticking_area_result.chunkCount + "   loaded: " + ticking_area_result.isFullyLoaded );
+							}
 						}
 					);	
+
 					console.warn("Skyworld gameplay enabled");
 				} else {
 					SKYWORLDMODE = false;
@@ -644,7 +667,6 @@ export class SkyWorld {
 				}
 			}
 		});
-		
 	}
 
 	EventInteract(event) {
@@ -737,7 +759,9 @@ export class SkyWorld {
 				const tickingareaname = "SPAWN_"+player.id.toString()
 				world.tickingAreaManager.createTickingArea(tickingareaname, tickingarea).then( 
 				function(result) { //as soon as the the tickingerea is loaded
-					console.warn("#spawn chunks: " + result.chunkCount + "   loaded: " + result.isFullyLoaded );
+					if (result) {
+						console.warn("#spawn chunks: " + result.chunkCount + "   loaded: " + result.isFullyLoaded );
+					}
 					const overworld = world.getDimension("minecraft:overworld");
 					system.run(() => {
 						cleanup_plot(spawnPlot);
@@ -819,15 +843,22 @@ export class SkyWorld {
 							};
 							world.tickingAreaManager.createTickingArea(skyworld_worldcenter_tickingarea_name, tickingarea).then(
 								function(result) { //as soon as the the tickingerea is loaded
-									console.info("Skyworld worldspawn chunks added to ticking manager: " + result.chunkCount + "   loaded: " + result.isFullyLoaded );
-									
+									if (result) {
+										console.info("Skyworld worldspawn chunks added to ticking manager: " + result.chunkCount + "   loaded: " + result.isFullyLoaded );
+									}
+
 									// cleanup these plots
 									cleanup_plot(worldplot1);
 									cleanup_plot(worldplot2);
 									cleanup_plot(worldplot3);
 									cleanup_plot(worldplot4);						
 								
-									generate_big_island({ x: 0, y: 0, z: 0});					
+									system.runTimeout(() => {generate_big_island({ x: 0, y: 0, z: 0});}, 20);
+									system.runTimeout(() => {generate_end_island({ x: 0, y: 280, z: 0});}, 40);
+
+									//small correction to add more light to worldspawn pool
+									system.runTimeout(() => {block_set(1,-21,-1, "minecraft:verdant_froglight");}, 100);
+									
 								}
 							);
 						});
