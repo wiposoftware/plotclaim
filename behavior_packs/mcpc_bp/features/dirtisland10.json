@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.0",
+  "minecraft:structure_template_feature": {
+    "description": {
+      "identifier": "minecraft:dirtisland10"
+    },
+    "structure_name": "mystructure:dirtisland10",
+    "adjustment_radius": 0,
+    "facing_direction": "random",
+    "constraints": {
+      "grounded": {}
+    }
+  }
+}

@@ -1,15 +1,21 @@
 # plotclaim
-A Minecraft Bedrock 3 in 1 Addon.
+A Minecraft Bedrock 4 in 1 Addon.
 featuring:
 - plot system
 - teleport system
 - worldborder system
+- skyworld system
 
-*If you would like to play this addon without installing it, we are hosting a Minecraft Bedrock server with Plotclaim.*
+*If you would like to play this addon without installing it, we are hosting a Minecraft Bedrock server with Plotclaim:*
 - *server address:* **185.228.81.162**
 - *server port:* **19132**
 
-## Installation
+*and a Minecraft Bedrock server with Plotclaim SKYWORLD:*
+- *server address:* **185.228.81.162**
+- *server port:* **29132**
+
+
+## Installation (Minecraft Windows client)
 - Download the latest version of the "plotclaim.mcaddon" file. ([releases](https://github.com/wiposoftware/plotclaim/releases))
 - Launch your Minecraft Bedrock game.
 - While the game is running go back to your "plotclaim.mcaddon" file that you downloaded and launch it.
@@ -51,8 +57,20 @@ featuring:
 - A player will be alerted when nearing the worldborder.
 - A player will receive damange when crossing the worldborder
 - A player will be killed when going 32 blocks behind the border.
+### skyworld
+- skyworld gameplay is disabled by default.
+- can be enable by running the command "/plotclaim:setskyworld true"
+- first create a empty (air only) world, activate the plotclaim addon and run the above command to start the skyworld gameplay.
+- generates random island for every player that joins the game. This island is a private plot.
+- generates a center island where player can gather some resources
+- generates random islands troughout the map with resources and evil mobs and treasures.
+- players can create and claim private plots.
 
 ## Recipes
 ![plotclaim_recipes_info](https://github.com/user-attachments/assets/a0cc79c1-148f-4eb7-9b69-2edc17414494)
+
+## Skyworld screenshots
+<img width="1000" height="939" alt="skyworldgameplay" src="https://github.com/user-attachments/assets/8464f7d1-165b-4a4a-ada3-a2b5c1523302" />
+
 
 

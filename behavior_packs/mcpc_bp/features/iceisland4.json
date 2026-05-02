@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.0",
+  "minecraft:structure_template_feature": {
+    "description": {
+      "identifier": "minecraft:iceisland4"
+    },
+    "structure_name": "mystructure:iceisland4",
+    "adjustment_radius": 0,
+    "facing_direction": "random",
+    "constraints": {
+      "grounded": {}
+    }
+  }
+}
