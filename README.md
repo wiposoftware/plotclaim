@@ -68,6 +68,8 @@ featuring:
 ## Recipes
 ![plotclaim_recipes_info](https://github.com/user-attachments/assets/a0cc79c1-148f-4eb7-9b69-2edc17414494)
 
+## skyworld screenshots
+<img width="1000" height="939" alt="skyworldgameplay" src="https://github.com/user-attachments/assets/8464f7d1-165b-4a4a-ada3-a2b5c1523302" />
 
 
 
